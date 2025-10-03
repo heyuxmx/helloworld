@@ -39,6 +39,7 @@ android {
     }
 }
 
+
 dependencies {
 
     implementation(libs.androidx.core.ktx)
@@ -52,5 +53,8 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.16.0")//Glide
     implementation("com.github.GrenderG:Toasty:1.5.2")//Toasty
     implementation("com.airbnb.android:lottie:6.6.10")//lottie
+    implementation(platform("io.github.jan-tennert.supabase:bom:3.2.3"))
+    implementation("io.github.jan-tennert.supabase:postgrest-kt")
+    implementation("io.ktor:ktor-client-android:3.0.0")
 
 }

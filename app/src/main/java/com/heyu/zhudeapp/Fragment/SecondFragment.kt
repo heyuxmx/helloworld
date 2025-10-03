@@ -6,10 +6,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
+import com.heyu.zhudeapp.activity.CreatePostActivity
 import com.heyu.zhudeapp.databinding.FragmentSecondBinding
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
+
 
 class SecondFragment : Fragment() {
 
@@ -27,6 +26,11 @@ class SecondFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        //点击悬浮按钮后跳转到CreatePostActivity
+        binding.fabAddPost.setOnClickListener {
+            val intent = Intent(requireContext(), CreatePostActivity::class.java)
+            startActivity(intent)
+        }
     }
 
     override fun onDestroyView() {

@@ -9,10 +9,26 @@ import com.heyu.zhudeapp.Fragment.SecondFragment
 import com.heyu.zhudeapp.Fragment.ThirdFragment
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.databinding.ActivityMainBinding
+import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.postgrest.postgrest
+import io.ktor.client.HttpClient
+import com.heyu.zhudeapp.data.Post
+
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var fragmentlist: List<Fragment>
+    /**
+     * 创建Supabase客户端实例，并安装Postgrest模块。
+     */
+    val supabase = createSupabaseClient(
+        supabaseUrl = "https://bvgtzgxscnqhugjirgzp.supabase.co",
+        supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z3R6Z3hzY25xaHVnamlyZ3pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1MDA5NTYsImV4cCI6MjA3NTA3Njk1Nn0.bSF7FkLgvFwsJOODgG8AKtLBpF-OPyzaUfoWSUmoFes"
+    ) {
+        install(Postgrest)
+    }
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,4 +92,6 @@ class MainActivity : AppCompatActivity() {
 
         ft.commit()
     }
+
+
 }
