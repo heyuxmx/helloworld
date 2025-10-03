@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/tab_first"
+        android:title="主页"
+        android:icon="@drawable/king"/>
+    <item android:id="@+id/tab_second"
+        android:title="记录"
+        android:icon="@drawable/coffee"/>
+    <item android:id="@+id/tab_third"
+        android:title="嘻嘻"
+        android:icon="@drawable/star"/>
+</menu>

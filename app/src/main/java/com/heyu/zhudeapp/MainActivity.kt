@@ -1,0 +1,80 @@
+package com.heyu.zhudeapp
+
+import android.os.Bundle
+import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.fragment.app.Fragment
+import com.heyu.zhudeapp.Fragment.FirstFragment
+import com.heyu.zhudeapp.Fragment.SecondFragment
+import com.heyu.zhudeapp.Fragment.ThirdFragment
+import com.heyu.zhudeapp.databinding.ActivityMainBinding
+
+class MainActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityMainBinding
+    private lateinit var fragmentlist: List<Fragment>
+
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        binding= ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        fragmentlist = listOf(FirstFragment(), SecondFragment(), ThirdFragment())
+        // Make sure to show the first fragment initially if not already handled
+        if (savedInstanceState == null) {
+            showFragment(fragmentlist[0])
+        }
+
+        binding.bottomNavigation.setOnItemSelectedListener {
+            item -> when (item.itemId) {
+                R.id.tab_first -> {
+                    showFragment(fragmentlist[0])
+                    true
+                }
+                R.id.tab_second -> {
+                    showFragment(fragmentlist[1])
+                    true
+                }
+                R.id.tab_third -> {
+                    showFragment(fragmentlist[2])
+                    true
+                }
+                else -> {
+                    false
+                }
+            }
+        }
+    }
+
+    private var currentFragment: Fragment? = null
+    // Changed R.id.main to R.id.fragment_container_view
+    // Also corrected the show/hide logic for fragments for proper replacement
+    private fun showFragment(fragment: Fragment) { // Removed MainActivity. extension receiver, not needed here
+        val fm = supportFragmentManager
+        val ft = fm.beginTransaction()
+
+        // If there's a current fragment and it's different from the new one, hide it.
+        currentFragment?.let {
+            if (it != fragment) {
+                ft.hide(it)
+            }
+        }
+
+        // If the fragment is already added, just show it.
+        // Otherwise, add it.
+        if (fragment.isAdded) {
+            ft.show(fragment)
+        } else {
+            ft.add(R.id.fragment_container_view, fragment)
+        }
+
+        // If the new fragment is different from the old one, set it as current.
+        if (currentFragment != fragment) {
+            currentFragment = fragment
+        }
+
+        ft.commit()
+    }
+}
