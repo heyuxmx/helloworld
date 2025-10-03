@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -50,5 +51,6 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     implementation("com.github.bumptech.glide:glide:4.16.0")//Glide
     implementation("com.github.GrenderG:Toasty:1.5.2")//Toasty
-    implementation("com.airbnb.android:lottie:6.4.0")//lottile
+    implementation("com.airbnb.android:lottie:6.6.10")//lottie
+
 }

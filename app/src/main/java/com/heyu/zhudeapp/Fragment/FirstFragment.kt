@@ -39,9 +39,7 @@ class FirstFragment : Fragment() {
     ): View? {
         // Inflate the layout for this fragment
         binding = FragmentFirstBinding.inflate(inflater, container, false)
-        //设置字体为res/fonts目录下的myfont.otf
-        val myfont = Typeface.createFromAsset(activity?.assets, "fonts/myfont.otf")
-        binding.welcome.typeface = myfont
+        //设置字体为res/font目录下的house.otf
         return binding.root
     }
 

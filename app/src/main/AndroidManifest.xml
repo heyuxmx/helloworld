@@ -11,7 +11,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.ZhudeApp">
-        <activity android:name=".SplashActivity"
+        <activity android:name=".activity.SplashActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -20,8 +20,12 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".MainActivity"
+        <activity android:name=".activity.MainActivity"
         android:exported="true"/>
+        <activity android:name=".activity.CreatePostActivity"
+            android:exported="false"/>
+
+            
     </application>
 
 </manifest>

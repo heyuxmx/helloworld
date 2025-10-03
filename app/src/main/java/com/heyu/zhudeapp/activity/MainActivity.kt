@@ -1,14 +1,13 @@
-package com.heyu.zhudeapp
+package com.heyu.zhudeapp.activity
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import com.heyu.zhudeapp.Fragment.FirstFragment
 import com.heyu.zhudeapp.Fragment.SecondFragment
 import com.heyu.zhudeapp.Fragment.ThirdFragment
+import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
