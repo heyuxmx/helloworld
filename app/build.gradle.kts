@@ -39,6 +39,12 @@ android {
     }
 }
 
+// Add this block to force a specific version of the browser library
+configurations.all {
+    resolutionStrategy {
+        force("androidx.browser:browser:1.8.0")
+    }
+}
 
 dependencies {
 
@@ -52,10 +58,15 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     implementation("com.github.bumptech.glide:glide:4.16.0")//Glide
     implementation("com.github.GrenderG:Toasty:1.5.2")//Toasty
-    implementation("com.airbnb.android:lottie:6.6.10")//lottie
-    implementation(platform("io.github.jan-tennert.supabase:bom:3.2.3"))
+    implementation("com.airbnb.android:lottie:6.4.0")//lottie
+
+    // Supabase
+    implementation(platform("io.github.jan-tennert.supabase:bom:2.5.3"))
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
     implementation("io.github.jan-tennert.supabase:storage-kt")
-    implementation("io.ktor:ktor-client-android:3.0.0")
+
+    // Ktor - Explicitly use a version compatible with Supabase BOM 2.5.3
+    implementation("io.ktor:ktor-client-android:2.3.11")
+    implementation("io.ktor:ktor-client-content-negotiation:2.3.11")
 
 }

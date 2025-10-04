@@ -7,7 +7,6 @@ import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
-import io.ktor.http.ContentType
 import java.util.UUID
 
 /**
@@ -61,13 +60,16 @@ object SupabaseModule {
         // 1. 生成一个独一无二的文件名，避免文件覆盖
         val fileName = "${UUID.randomUUID()}.$fileExtension"
 
-        // 2. 使用 storage 模块上传文件
+        // 2. 最终的、唯一的正确方法：
+        //    直接调用接收 ByteArray 的 upload 函数。我们不能手动设置 contentType，
+        //    但 Supabase 会根据你提供的文件扩展名（.jpg, .png等）自动推断正确的内容类型。
         supabase.storage
             .from(POST_IMAGES_BUCKET)
-            .upload(fileName, imageBytes) {
+            .upload(
+                path = fileName,
+                data = imageBytes, // 直接传递字节数组
                 upsert = false
-                contentType = ContentType("image", fileExtension)
-            }
+            )
 
         // 3. 获取并返回上传后文件的公开URL
         return supabase.storage.from(POST_IMAGES_BUCKET).publicUrl(fileName)
