@@ -61,7 +61,7 @@ class CreatePostActivity : AppCompatActivity() {
     private fun publishPost() {
         val content = binding.contentEditText.text.toString()
         if (content.isBlank() && selectedImageUris.isEmpty()) {
-            Toasty.warning(this, "Content cannot be empty").show()
+            Toasty.warning(this, "内容不能为空").show()
             return
         }
 
@@ -71,27 +71,26 @@ class CreatePostActivity : AppCompatActivity() {
             try {
                 val imageUrls = mutableListOf<String>()
                 if (selectedImageUris.isNotEmpty()) {
-                    // Upload all images
+                    // 遍历所有选择的图片
                     for (uri in selectedImageUris) {
-                        // Convert Uri to ByteArray
-                        val imageBytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        // 步骤1：压缩图片，将其变为轻量级的字节数组
+                        val imageBytes = SupabaseModule.compressImage(this@CreatePostActivity, uri)
 
-                        if (imageBytes != null) {
-                            // Generate a unique file name to avoid overwriting files in storage
-                            val fileName = "${UUID.randomUUID()}"
-                            // The upload function now expects the image data and a file name string
-                            val url = SupabaseModule.uploadPostImage(imageBytes, fileName)
-                            imageUrls.add(url)
-                        }
+                        // 步骤2：为压缩后的图片（.jpg）生成一个唯一的文件名
+                        val fileName = "${UUID.randomUUID()}.jpg"
+                        
+                        // 步骤3：上传压缩后的图片数据
+                        val url = SupabaseModule.uploadPostImage(imageBytes, fileName)
+                        imageUrls.add(url)
                     }
                 }
 
-                // Create post with all image URLs
+                // 使用包含所有图片URL的列表创建动态
                 SupabaseModule.createPost(content, imageUrls)
-                Toasty.success(this@CreatePostActivity, "Published successfully").show()
+                Toasty.success(this@CreatePostActivity, "发布成功").show()
                 finish()
             } catch (e: Exception) {
-                Toasty.error(this@CreatePostActivity, "Failed to publish: ${e.message}").show()
+                Toasty.error(this@CreatePostActivity, "发布失败: ${e.message}").show()
             } finally {
                 setLoading(false)
             }

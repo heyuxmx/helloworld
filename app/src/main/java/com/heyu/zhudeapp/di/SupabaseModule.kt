@@ -1,5 +1,9 @@
 package com.heyu.zhudeapp.di
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import com.heyu.zhudeapp.data.Post
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
@@ -7,6 +11,7 @@ import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
+import java.io.ByteArrayOutputStream
 import java.util.UUID
 
 /**
@@ -52,16 +57,11 @@ object SupabaseModule {
      * 上传一张图片到帖子的存储桶中。
      *
      * @param imageBytes 图片的字节数组。
-     * @param fileExtension 文件扩展名 (例如, "jpg", "png")。
+     * @param fileName 包含扩展名的完整文件名 (例如, "some-uuid.jpg")。
      * @return 上传成功后图片的公开访问URL。
      */
-    suspend fun uploadPostImage(imageBytes: ByteArray, fileExtension: String): String {
-        // 1. 生成一个独一无二的文件名，避免文件覆盖
-        val fileName = "${UUID.randomUUID()}.$fileExtension"
-
-        // 2. 最终的、唯一的正确方法：
-        //    直接调用接收 ByteArray 的 upload 函数。我们不能手动设置 contentType，
-        //    但 Supabase 会根据你提供的文件扩展名（.jpg, .png等）自动推断正确的内容类型。
+    suspend fun uploadPostImage(imageBytes: ByteArray, fileName: String): String {
+        // 直接使用传入的文件名进行上传
         supabase.storage
             .from(POST_IMAGES_BUCKET)
             .upload(
@@ -70,8 +70,52 @@ object SupabaseModule {
                 upsert = false
             )
 
-        // 3. 获取并返回上传后文件的公开URL
+        // 获取并返回上传后文件的公开URL
         return supabase.storage.from(POST_IMAGES_BUCKET).publicUrl(fileName)
     }
 
+    /**
+     * 将给定的图片Uri进行压缩和尺寸调整，转换为适合上传的ByteArray。
+     *
+     * @param context Context对象，用于访问ContentResolver。
+     * @param uri 要压缩的图片的Uri。
+     * @param maxWidth 调整后的图片最大宽度。
+     * @param maxHeight 调整后的图片最大高度。
+     * @param quality 压缩质量 (0-100)。
+     * @return 包含压缩后JPEG图片数据的ByteArray。
+     */
+    fun compressImage(
+        context: Context,
+        uri: Uri,
+        maxWidth: Int = 1080,
+        maxHeight: Int = 1920,
+        quality: Int = 80
+    ): ByteArray {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        val options = BitmapFactory.Options().apply {
+            // 首先，只解码边界，不加载整个图片，以获取原始尺寸
+            inJustDecodeBounds = true
+        }
+        BitmapFactory.decodeStream(inputStream, null, options)
+        inputStream?.close()
+
+        // 计算缩放比例
+        val srcWidth = options.outWidth
+        val srcHeight = options.outHeight
+        val scaleFactor = maxOf(1, minOf(srcWidth / maxWidth, srcHeight / maxHeight))
+
+        // 使用计算出的缩放比例来真正地解码、缩放图片
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = scaleFactor
+        }
+        val bitmap = context.contentResolver.openInputStream(uri).use {
+            BitmapFactory.decodeStream(it, null, decodeOptions)!!
+        }
+
+        // 将缩放后的Bitmap压缩为JPEG格式的ByteArray
+        return ByteArrayOutputStream().use {
+            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, it)
+            it.toByteArray()
+        }
+    }
 }

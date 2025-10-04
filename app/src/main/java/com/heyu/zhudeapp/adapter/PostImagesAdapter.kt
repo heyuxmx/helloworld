@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.databinding.PostImageItemBinding
 
 /**
@@ -29,6 +30,9 @@ class PostImagesAdapter(private val imageUrls: List<String>) : RecyclerView.Adap
         val imageUrl = imageUrls[position]
         Glide.with(holder.itemView.context)
             .load(imageUrl)
+            .placeholder(R.drawable.image_placeholder) // 先显示一个柔和的灰色占位图
+            .error(R.drawable.image_placeholder)       // 加载失败时也显示占位图
+            .thumbnail(0.1f) // 先加载一个10%尺寸的模糊缩略图，然后再加载全图
             .into(holder.binding.postImageItemView)
     }
 
