@@ -6,4 +6,6 @@
     <string name="add_picture">添加图片</string>
     <string name="publish">发布</string>
     <string name="gzzhshizhu">高詹子慧是猪</string>
+    <string name="remove_image">移除图片</string>
+    <string name="post_image_content_description">动态图片</string>
 </resources>

@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -59,6 +60,9 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.16.0")//Glide
     implementation("com.github.GrenderG:Toasty:1.5.2")//Toasty
     implementation("com.airbnb.android:lottie:6.4.0")//lottie
+
+    // Kotlinx Serialization
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     // Supabase
     implementation(platform("io.github.jan-tennert.supabase:bom:2.5.3"))

@@ -36,13 +36,12 @@ object SupabaseModule {
     /**
      * 创建一条新的动态。
      * @param content 动态的文本内容。
-     * @param imageUrl 可选的图片URL。
+     * @param imageUrls 可选的图片URL列表。
      */
-    suspend fun createPost(content: String, imageUrl: String? = null) {
+    suspend fun createPost(content: String, imageUrls: List<String> = emptyList()) {
         val newPost = Post(
             content = content,
-            // 如果imageUrl不为空，则创建一个包含该URL的列表
-            imageUrls = if (imageUrl != null) listOf(imageUrl) else emptyList()
+            imageUrls = imageUrls
             // 备注: userId, username 等字段未来可以和用户认证流程结合
         )
         supabase.postgrest[POST_TABLE].insert(newPost)

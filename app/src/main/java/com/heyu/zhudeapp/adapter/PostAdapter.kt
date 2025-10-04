@@ -1,67 +1,70 @@
 package com.heyu.zhudeapp.adapter
 
+import android.annotation.SuppressLint
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
-import android.widget.TextView
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.data.Post
+import com.heyu.zhudeapp.databinding.PostItemBinding
 
+// Change 'val' to 'var' to make the list updatable
 class PostAdapter(private var posts: List<Post>) : RecyclerView.Adapter<PostAdapter.PostViewHolder>() {
 
-    /**
-     * ViewHolder 负责持有列表项的视图，避免每次都通过 findViewById 查找。
-     */
-    inner class PostViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val contentTextView: TextView = itemView.findViewById(R.id.post_content_text)
-        val postImageView: ImageView = itemView.findViewById(R.id.post_image_view)
-    }
-
-    /**
-     * 当 RecyclerView 需要一个新的 ViewHolder 时调用，用于创建列表项的视图。
-     */
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.list_item_post, parent, false)
-        return PostViewHolder(view)
+        val binding = PostItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return PostViewHolder(binding)
     }
 
-    /**
-     * 当 RecyclerView 需要将数据绑定到 ViewHolder 上时调用。
-     */
     override fun onBindViewHolder(holder: PostViewHolder, position: Int) {
         val post = posts[position]
-
-        // 1. 绑定动态的文本内容
-        holder.contentTextView.text = post.content
-
-        // 2. 检查是否有图片
-        if (post.imageUrls.isNotEmpty()) {
-            holder.postImageView.visibility = View.VISIBLE
-            // 使用 Glide 加载第一张图片
-            Glide.with(holder.itemView.context)
-                .load(post.imageUrls[0])
-                .into(holder.postImageView)
-        } else {
-            // 如果没有图片，确保 ImageView 是隐藏的
-            holder.postImageView.visibility = View.GONE
-        }
+        holder.bind(post)
     }
 
-    /**
-     * 返回数据列表的总数。
-     */
-    override fun getItemCount(): Int {
-        return posts.size
-    }
+    override fun getItemCount(): Int = posts.size
 
     /**
-     * 用于在获取到新数据后，更新适配器中的数据并刷新列表。
+     * Updates the list of posts and notifies the adapter of the data change.
      */
+    @SuppressLint("NotifyDataSetChanged")
     fun updatePosts(newPosts: List<Post>) {
         posts = newPosts
-        notifyDataSetChanged() // 通知 RecyclerView 数据已变更，需要重绘
+        // This is the simplest way to refresh the list.
+        // For better performance, DiffUtil could be used in a more complex app.
+        notifyDataSetChanged()
+    }
+
+    class PostViewHolder(private val binding: PostItemBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(post: Post) {
+            binding.postTextContent.text = post.content
+            // You might want to format this timestamp nicely in the future
+            binding.postTimestamp.text = post.createdAt
+
+            if (post.imageUrls.isNotEmpty()) {
+                binding.postImagesRecyclerView.visibility = View.VISIBLE
+
+                // Determine the number of columns for the grid dynamically.
+                // - 1 image: 1 column (large image)
+                // - 2 or 4 images: 2 columns (2x1 or 2x2 grid)
+                // - 3 or 5+ images: 3 columns (standard grid)
+                val spanCount = when (post.imageUrls.size) {
+                    1 -> 1
+                    2, 4 -> 2
+                    else -> 3
+                }
+
+                // Set up the GridLayoutManager and the adapter for the nested RecyclerView.
+                val layoutManager = GridLayoutManager(itemView.context, spanCount)
+                val imagesAdapter = PostImagesAdapter(post.imageUrls)
+
+                binding.postImagesRecyclerView.layoutManager = layoutManager
+                binding.postImagesRecyclerView.adapter = imagesAdapter
+
+            } else {
+                // If there are no images, hide the RecyclerView.
+                binding.postImagesRecyclerView.visibility = View.GONE
+            }
+        }
     }
 }

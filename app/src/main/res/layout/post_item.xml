@@ -15,20 +15,21 @@
         android:textSize="16sp"
         tools:text="这里是动态的文字内容..."/>
 
-    <ImageView
-        android:id="@+id/post_image"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/post_images_recycler_view"
         android:layout_width="match_parent"
-        android:layout_height="200dp"
+        android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:scaleType="centerCrop"
         android:visibility="gone"
-        tools:srcCompat="@tools:sample/backgrounds/scenic"
+        tools:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
+        tools:spanCount="3"
+        tools:listitem="@layout/post_image_item"
         tools:visibility="visible" />
 
     <TextView
         android:id="@+id/post_timestamp"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android.layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:textSize="12sp"
         tools:text="2小时前" />

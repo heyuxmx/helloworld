@@ -7,6 +7,7 @@ import com.heyu.zhudeapp.di.SupabaseModule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class PostViewModel : ViewModel() {
 
@@ -25,8 +26,8 @@ class PostViewModel : ViewModel() {
      */
     fun createTextPost(content: String) {
         viewModelScope.launch {
-            // 调用 SupabaseModule 中的高级函数
-            SupabaseModule.createPost(content, null)
+            // 对于没有图片的帖子，我们传递一个空列表，而不是null
+            SupabaseModule.createPost(content, emptyList())
         }
     }
 
@@ -39,10 +40,12 @@ class PostViewModel : ViewModel() {
      */
     fun createPostWithImage(content: String, imageBytes: ByteArray, fileExtension: String) {
         viewModelScope.launch {
+            // 为要上传的图片创建一个唯一的文件名
+            val fileName = "${UUID.randomUUID()}.$fileExtension"
             // 1. 通过模块上传图片，获取URL
-            val imageUrl = SupabaseModule.uploadPostImage(imageBytes, fileExtension)
-            // 2. 通过模块创建带有图片URL的帖子
-            SupabaseModule.createPost(content, imageUrl)
+            val imageUrl = SupabaseModule.uploadPostImage(imageBytes, fileName)
+            // 2. 将单个图片URL放入一个列表中，再创建帖子
+            SupabaseModule.createPost(content, listOf(imageUrl))
         }
     }
 }
