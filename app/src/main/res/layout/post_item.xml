@@ -5,7 +5,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:layout_marginBottom="12dp">
 
     <TextView
         android:id="@+id/post_text_content"
@@ -30,7 +31,7 @@
         android:id="@+id/post_timestamp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android.layout_marginTop="8dp"
         android:textSize="12sp"
         tools:text="2小时前" />
 

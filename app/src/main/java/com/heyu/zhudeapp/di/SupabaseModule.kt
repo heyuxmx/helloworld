@@ -52,6 +52,17 @@ object SupabaseModule {
         supabase.postgrest[POST_TABLE].insert(newPost)
     }
 
+    /**
+     * Deletes a post from the database based on its ID.
+     * @param post The post to be deleted.
+     */
+    suspend fun deletePost(post: Post) {
+        supabase.postgrest[POST_TABLE].delete {
+            filter {
+                eq("id", post.id)
+            }
+        }
+    }
 
     /**
      * 上传一张图片到帖子的存储桶中。

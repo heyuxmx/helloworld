@@ -3,10 +3,12 @@ package com.heyu.zhudeapp.activity
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.adapter.SelectedImagesAdapter
 import com.heyu.zhudeapp.databinding.ActivityCreatePostBinding
 import com.heyu.zhudeapp.di.SupabaseModule
@@ -20,9 +22,10 @@ class CreatePostActivity : AppCompatActivity() {
     private lateinit var selectedImagesAdapter: SelectedImagesAdapter
     private val selectedImageUris = mutableListOf<Uri>()
 
-    private val pickImages = registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
-        uris.let {
-            selectedImageUris.addAll(it)
+    // Use the modern PickVisualMedia contract for a better user experience.
+    private val pickMultipleMedia = registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(5)) { uris ->
+        if (uris.isNotEmpty()) {
+            selectedImageUris.addAll(uris)
             selectedImagesAdapter.notifyDataSetChanged()
         }
     }
@@ -33,24 +36,14 @@ class CreatePostActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupRecyclerView()
-
-        binding.addImageButton.setOnClickListener {
-            pickImages.launch("image/*")
-        }
-
-        binding.publishButton.setOnClickListener {
-            publishPost()
-        }
+        setupClickListeners()
     }
 
     private fun setupRecyclerView() {
         selectedImagesAdapter = SelectedImagesAdapter(selectedImageUris) { uri ->
-            // Handle remove image
-            val position = selectedImageUris.indexOf(uri)
-            if (position != -1) {
-                selectedImageUris.removeAt(position)
-                selectedImagesAdapter.notifyItemRemoved(position)
-            }
+            // A simpler way to remove the image from the list.
+            selectedImageUris.remove(uri)
+            selectedImagesAdapter.notifyDataSetChanged() // Notify for a full redraw, simpler for this case.
         }
         binding.selectedImagesRecyclerView.apply {
             adapter = selectedImagesAdapter
@@ -58,49 +51,79 @@ class CreatePostActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupClickListeners() {
+        binding.addImageButton.setOnClickListener {
+            // Launch the modern photo picker.
+            pickMultipleMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
+
+        binding.publishButton.setOnClickListener {
+            publishPost()
+        }
+    }
+
     private fun publishPost() {
-        val content = binding.contentEditText.text.toString()
+        val content = binding.contentEditText.text.toString().trim()
         if (content.isBlank() && selectedImageUris.isEmpty()) {
-            Toasty.warning(this, "内容不能为空").show()
+            Toasty.warning(this, getString(R.string.post_content_cannot_be_empty)).show()
             return
         }
 
-        setLoading(true)
-
         lifecycleScope.launch {
+            renderState(UiState.Loading)
             try {
-                val imageUrls = mutableListOf<String>()
-                if (selectedImageUris.isNotEmpty()) {
-                    // 遍历所有选择的图片
-                    for (uri in selectedImageUris) {
-                        // 步骤1：压缩图片，将其变为轻量级的字节数组
-                        val imageBytes = SupabaseModule.compressImage(this@CreatePostActivity, uri)
-
-                        // 步骤2：为压缩后的图片（.jpg）生成一个唯一的文件名
-                        val fileName = "${UUID.randomUUID()}.jpg"
-                        
-                        // 步骤3：上传压缩后的图片数据
-                        val url = SupabaseModule.uploadPostImage(imageBytes, fileName)
-                        imageUrls.add(url)
-                    }
-                }
-
-                // 使用包含所有图片URL的列表创建动态
+                val imageUrls = uploadImages()
                 SupabaseModule.createPost(content, imageUrls)
-                Toasty.success(this@CreatePostActivity, "发布成功！").show()
-                finish()
+                renderState(UiState.Success)
             } catch (e: Exception) {
-                Toasty.error(this@CreatePostActivity, "发布失败: ${e.message}").show()
-            } finally {
-                setLoading(false)
+                renderState(UiState.Error(e.localizedMessage ?: getString(R.string.unknown_error)))
             }
         }
     }
 
-    private fun setLoading(isLoading: Boolean) {
-        binding.loadingIndicator.visibility = if (isLoading) View.VISIBLE else View.GONE
-        binding.publishButton.isEnabled = !isLoading
-        binding.contentEditText.isEnabled = !isLoading
-        binding.addImageButton.isEnabled = !isLoading
+    private suspend fun uploadImages(): List<String> {
+        val imageUrls = mutableListOf<String>()
+        if (selectedImageUris.isNotEmpty()) {
+            for (uri in selectedImageUris) {
+                val imageBytes = SupabaseModule.compressImage(this@CreatePostActivity, uri)
+                val fileName = "${UUID.randomUUID()}.jpg"
+                val url = SupabaseModule.uploadPostImage(imageBytes, fileName)
+                imageUrls.add(url)
+            }
+        }
+        return imageUrls
+    }
+
+    private fun renderState(state: UiState) {
+        when (state) {
+            is UiState.Loading -> {
+                binding.loadingIndicator.visibility = View.VISIBLE
+                setInputsEnabled(false)
+            }
+            is UiState.Success -> {
+                binding.loadingIndicator.visibility = View.GONE
+                setInputsEnabled(true)
+                Toasty.success(this, getString(R.string.publish_success)).show()
+                finish()
+            }
+            is UiState.Error -> {
+                binding.loadingIndicator.visibility = View.GONE
+                setInputsEnabled(true)
+                Toasty.error(this, getString(R.string.publish_failed, state.message)).show()
+            }
+        }
+    }
+
+    private fun setInputsEnabled(enabled: Boolean) {
+        binding.publishButton.isEnabled = enabled
+        binding.contentEditText.isEnabled = enabled
+        binding.addImageButton.isEnabled = enabled
+    }
+
+    // Sealed class to represent different UI states.
+    sealed class UiState {
+        object Loading : UiState()
+        object Success : UiState()
+        data class Error(val message: String) : UiState()
     }
 }

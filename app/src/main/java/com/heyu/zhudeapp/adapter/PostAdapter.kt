@@ -11,8 +11,17 @@ import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.databinding.PostItemBinding
 import com.heyu.zhudeapp.utils.DateUtils
 
-// Change 'val' to 'var' to make the list updatable
-class PostAdapter(private var posts: List<Post>) : RecyclerView.Adapter<PostAdapter.PostViewHolder>() {
+// Define an interface for long click events.
+// The Fragment will implement this to receive the event.
+fun interface OnItemLongClickListener {
+    fun onItemLongClick(post: Post)
+}
+
+class PostAdapter(
+    private var posts: List<Post>,
+    // Add the listener to the adapter's constructor.
+    private val onItemLongClickListener: OnItemLongClickListener
+) : RecyclerView.Adapter<PostAdapter.PostViewHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
         val binding = PostItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -22,6 +31,13 @@ class PostAdapter(private var posts: List<Post>) : RecyclerView.Adapter<PostAdap
     override fun onBindViewHolder(holder: PostViewHolder, position: Int) {
         val post = posts[position]
         holder.bind(post)
+        // Set a long click listener on the item view.
+        holder.itemView.setOnLongClickListener {
+            // When a long click happens, call the listener's method.
+            onItemLongClickListener.onItemLongClick(post)
+            // Return true to indicate that the event has been consumed.
+            true
+        }
     }
 
     override fun getItemCount(): Int = posts.size

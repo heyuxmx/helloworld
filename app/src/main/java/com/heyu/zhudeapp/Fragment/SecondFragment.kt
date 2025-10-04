@@ -5,10 +5,12 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.heyu.zhudeapp.activity.CreatePostActivity
+import com.heyu.zhudeapp.adapter.OnItemLongClickListener
 import com.heyu.zhudeapp.adapter.PostAdapter
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.databinding.FragmentSecondBinding
@@ -18,7 +20,8 @@ import kotlinx.coroutines.launch
 /**
  * 应用的核心主屏幕，用于显示动态列表并提供发布入口。
  */
-class SecondFragment : Fragment() {
+// Implement the long click listener interface.
+class SecondFragment : Fragment(), OnItemLongClickListener {
 
     private var _binding: FragmentSecondBinding? = null
     private val binding get() = _binding!!
@@ -58,16 +61,31 @@ class SecondFragment : Fragment() {
      * 设置 RecyclerView，此函数已修正所有编译错误。
      */
     private fun setupRecyclerView() {
-        // 修正1: 明确指定空列表的类型为 List<Post>
-        postAdapter = PostAdapter(emptyList<Post>())
+        // Pass 'this' as the listener to the adapter.
+        postAdapter = PostAdapter(emptyList<Post>(), this)
 
-        // 修正2: 使用 requireContext() 并直接设置属性
         binding.postsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.postsRecyclerView.adapter = postAdapter
     }
 
     /**
-     * 从 Supabase 异步加载动态并更新到 UI
+     * This method is called when a post is long-clicked.
+     */
+    override fun onItemLongClick(post: Post) {
+        // Show a confirmation dialog.
+        AlertDialog.Builder(requireContext())
+            .setTitle("Confirm Deletion")
+            .setMessage("Are you sure you want to delete this post?")
+            .setPositiveButton("Delete") { _, _ ->
+                // If confirmed, proceed with deletion.
+                deletePost(post)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /**
+     * From Supabase 异步加载动态并更新到 UI
      */
     private fun loadPosts() {
         viewLifecycleOwner.lifecycleScope.launch {
@@ -77,6 +95,21 @@ class SecondFragment : Fragment() {
                 postAdapter.updatePosts(posts.reversed())
             } catch (e: Exception) {
                 // 可以在这里添加错误提示，例如 Toast
+            }
+        }
+    }
+
+    /**
+     * Deletes a post from Supabase and refreshes the list.
+     */
+    private fun deletePost(post: Post) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                SupabaseModule.deletePost(post)
+                // After deletion, reload the posts to update the UI.
+                loadPosts()
+            } catch (e: Exception) {
+                // You could show a toast here to indicate the failure.
             }
         }
     }

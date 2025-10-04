@@ -8,4 +8,8 @@
     <string name="gzzhshizhu">高詹子慧是猪</string>
     <string name="remove_image">移除图片</string>
     <string name="post_image_content_description">动态图片</string>
+    <string name="post_content_cannot_be_empty">内容不能为空</string>
+    <string name="publish_success">发布成功！</string>
+    <string name="publish_failed">发布失败: %1$s</string>
+    <string name="unknown_error">未知错误</string>
 </resources>
