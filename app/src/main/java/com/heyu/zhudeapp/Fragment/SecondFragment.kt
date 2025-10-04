@@ -5,8 +5,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.heyu.zhudeapp.activity.CreatePostActivity
@@ -14,18 +14,17 @@ import com.heyu.zhudeapp.adapter.OnItemLongClickListener
 import com.heyu.zhudeapp.adapter.PostAdapter
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.databinding.FragmentSecondBinding
-import com.heyu.zhudeapp.di.SupabaseModule
+import com.heyu.zhudeapp.viewmodel.PostViewModel
+import es.dmoral.toasty.Toasty
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 
-/**
- * 应用的核心主屏幕，用于显示动态列表并提供发布入口。
- */
-// Implement the long click listener interface.
 class SecondFragment : Fragment(), OnItemLongClickListener {
 
     private var _binding: FragmentSecondBinding? = null
     private val binding get() = _binding!!
 
+    private lateinit var viewModel: PostViewModel
     private lateinit var postAdapter: PostAdapter
 
     override fun onCreateView(
@@ -38,81 +37,106 @@ class SecondFragment : Fragment(), OnItemLongClickListener {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        viewModel = ViewModelProvider(this).get(PostViewModel::class.java)
 
-        // 设置列表和“+”号按钮的点击事件
         setupRecyclerView()
+        observeViewModel()
         setupFab()
+        setupFragmentResultListener()
+        setupDaysCounter()
+
+        // Post loading is now handled in onResume to ensure the list is always fresh.
     }
 
     override fun onResume() {
         super.onResume()
-        // 当用户从发布页返回时，自动加载/刷新动态列表
+        // Load posts every time the fragment becomes visible.
+        // This ensures that new posts created in CreatePostActivity are displayed upon return.
         loadPosts()
+    }
+
+    private fun setupDaysCounter() {
+        // Use Calendar for API 24+ compatibility and fix the start date.
+        val startDate = java.util.Calendar.getInstance().apply {
+            // Set to 2014-12-21. Note: Calendar months are 0-indexed (DECEMBER = 11).
+            set(2024, java.util.Calendar.DECEMBER, 21, 0, 0, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val today = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+
+        val diffInMillis = today.timeInMillis - startDate.timeInMillis
+        // Add 1 to include the start day in the count.
+        val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(diffInMillis) + 1
+        binding.daysTextView.text = "今天是我们在一起的第${days}天啦"
+    }
+
+    private fun setupFragmentResultListener() {
+        // Use the corrected keys from the companion object of DeleteConfirmationDialogFragment
+        childFragmentManager.setFragmentResultListener(DeleteConfirmationDialogFragment.REQUEST_KEY, this) { _, bundle ->
+            val confirmed = bundle.getBoolean(DeleteConfirmationDialogFragment.BUNDLE_KEY_CONFIRMED)
+            if (confirmed) {
+                val postJson = bundle.getString(DeleteConfirmationDialogFragment.BUNDLE_KEY_POST)
+                postJson?.let {
+                    val post = Json.decodeFromString<Post>(it)
+                    deletePost(post)
+                }
+            }
+        }
+    }
+
+
+    private fun setupRecyclerView() {
+        // Pass 'this' as the long click listener
+        postAdapter = PostAdapter(emptyList(), this)
+        // A standard LinearLayoutManager is used to display items from top to bottom.
+        binding.postsRecyclerView.apply {
+            layoutManager = LinearLayoutManager(context)
+            adapter = postAdapter
+        }
+    }
+
+    private fun observeViewModel() {
+        viewModel.posts.observe(viewLifecycleOwner) { posts ->
+            postAdapter.updatePosts(posts)
+        }
+        viewModel.error.observe(viewLifecycleOwner) { error ->
+            // Use Toasty for consistency
+            Toasty.error(requireContext(), error, Toasty.LENGTH_LONG).show()
+        }
     }
 
     private fun setupFab() {
         binding.fabCreatePost.setOnClickListener {
-            val intent = Intent(requireContext(), CreatePostActivity::class.java)
-            startActivity(intent)
+            startActivity(Intent(requireContext(), CreatePostActivity::class.java))
         }
     }
 
-    /**
-     * 设置 RecyclerView，此函数已修正所有编译错误。
-     */
-    private fun setupRecyclerView() {
-        // Pass 'this' as the listener to the adapter.
-        postAdapter = PostAdapter(emptyList<Post>(), this)
-
-        binding.postsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
-        binding.postsRecyclerView.adapter = postAdapter
-    }
-
-    /**
-     * This method is called when a post is long-clicked.
-     */
-    override fun onItemLongClick(post: Post) {
-        // Show a confirmation dialog.
-        AlertDialog.Builder(requireContext())
-            .setTitle("Confirm Deletion")
-            .setMessage("Are you sure you want to delete this post?")
-            .setPositiveButton("Delete") { _, _ ->
-                // If confirmed, proceed with deletion.
-                deletePost(post)
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    /**
-     * From Supabase 异步加载动态并更新到 UI
-     */
     private fun loadPosts() {
-        viewLifecycleOwner.lifecycleScope.launch {
+        viewModel.fetchPosts()
+    }
+
+    override fun onItemLongClick(post: Post) {
+        val dialog = DeleteConfirmationDialogFragment.newInstance(post)
+        dialog.show(childFragmentManager, "DeleteConfirmationDialog")
+    }
+
+    private fun deletePost(post: Post) {
+        lifecycleScope.launch {
             try {
-                val posts = SupabaseModule.getPosts()
-                // 将获取到的动态列表反转，以实现倒序展示
-                postAdapter.updatePosts(posts.reversed())
+                viewModel.deletePost(post)
+                Toasty.success(requireContext(), "删除成功!", Toasty.LENGTH_SHORT).show()
+                // The observer will handle the UI update by reloading the posts
             } catch (e: Exception) {
-                // 可以在这里添加错误提示，例如 Toast
+                Toasty.error(requireContext(), "删除失败: ${e.message}", Toasty.LENGTH_LONG).show()
             }
         }
     }
 
-    /**
-     * Deletes a post from Supabase and refreshes the list.
-     */
-    private fun deletePost(post: Post) {
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                SupabaseModule.deletePost(post)
-                // After deletion, reload the posts to update the UI.
-                loadPosts()
-            } catch (e: Exception) {
-                // You could show a toast here to indicate the failure.
-            }
-        }
-    }
 
     override fun onDestroyView() {
         super.onDestroyView()

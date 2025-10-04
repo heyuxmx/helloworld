@@ -50,6 +50,8 @@ configurations.all {
 dependencies {
 
     implementation(libs.androidx.core.ktx)
+    // Replaced libs alias with a direct dependency to ensure it resolves correctly.
+    implementation("androidx.fragment:fragment-ktx:1.7.1")
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.activity)

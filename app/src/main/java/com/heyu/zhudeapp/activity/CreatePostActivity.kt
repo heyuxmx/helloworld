@@ -13,6 +13,9 @@ import com.heyu.zhudeapp.adapter.SelectedImagesAdapter
 import com.heyu.zhudeapp.databinding.ActivityCreatePostBinding
 import com.heyu.zhudeapp.di.SupabaseModule
 import es.dmoral.toasty.Toasty
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -23,7 +26,7 @@ class CreatePostActivity : AppCompatActivity() {
     private val selectedImageUris = mutableListOf<Uri>()
 
     // Use the modern PickVisualMedia contract for a better user experience.
-    private val pickMultipleMedia = registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(5)) { uris ->
+    private val pickMultipleMedia = registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(20)) { uris ->
         if (uris.isNotEmpty()) {
             selectedImageUris.addAll(uris)
             selectedImagesAdapter.notifyDataSetChanged()
@@ -81,17 +84,18 @@ class CreatePostActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun uploadImages(): List<String> {
-        val imageUrls = mutableListOf<String>()
+    private suspend fun uploadImages(): List<String> = coroutineScope {
         if (selectedImageUris.isNotEmpty()) {
-            for (uri in selectedImageUris) {
-                val imageBytes = SupabaseModule.compressImage(this@CreatePostActivity, uri)
-                val fileName = "${UUID.randomUUID()}.jpg"
-                val url = SupabaseModule.uploadPostImage(imageBytes, fileName)
-                imageUrls.add(url)
-            }
+            selectedImageUris.map { uri ->
+                async {
+                    val imageBytes = SupabaseModule.compressImage(this@CreatePostActivity, uri)
+                    val fileName = "${UUID.randomUUID()}.jpg"
+                    SupabaseModule.uploadPostImage(imageBytes, fileName)
+                }
+            }.awaitAll()
+        } else {
+            emptyList()
         }
-        return imageUrls
     }
 
     private fun renderState(state: UiState) {

@@ -3,12 +3,15 @@ package com.heyu.zhudeapp.di
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import com.heyu.zhudeapp.data.Post
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
 import java.io.ByteArrayOutputStream
@@ -31,11 +34,13 @@ object SupabaseModule {
     }
 
     /**
-     * 从数据库获取所有动态的列表。
-     * @return 动态列表。
+     * 从数据库获取所有动态的列表，并严格按照创建时间降序排列。
+     * @return 从新到旧排序的动态列表。
      */
     suspend fun getPosts(): List<Post> {
-        return supabase.postgrest[POST_TABLE].select().decodeList<Post>()
+        return supabase.postgrest[POST_TABLE].select {
+            order("created_at", Order.DESCENDING)
+        }.decodeList<Post>()
     }
 
     /**
@@ -53,14 +58,31 @@ object SupabaseModule {
     }
 
     /**
-     * Deletes a post from the database based on its ID.
+     * Deletes a post from the database and verifies the deletion.
+     * This is done by attempting a selection immediately after the deletion.
+     * If the post is still found, it throws an exception, which is often
+     * caused by RLS (Row-Level Security) policies.
      * @param post The post to be deleted.
      */
     suspend fun deletePost(post: Post) {
+        // Step 1: Attempt to delete the post.
         supabase.postgrest[POST_TABLE].delete {
             filter {
                 eq("id", post.id)
             }
+        }
+
+        // Step 2: Immediately try to fetch the post we just tried to delete.
+        val result = supabase.postgrest[POST_TABLE].select {
+            filter {
+                eq("id", post.id)
+            }
+        }.decodeList<Post>()
+
+        // Step 3: If the result list is not empty, the post was not deleted.
+        if (result.isNotEmpty()) {
+            // Step 4: Throw an exception explaining the likely cause.
+            throw IllegalStateException("Deletion failed: The post still exists after deletion attempt. This is likely due to Row-Level Security (RLS) policies. Please check your Supabase dashboard.")
         }
     }
 
@@ -86,47 +108,84 @@ object SupabaseModule {
     }
 
     /**
-     * 将给定的图片Uri进行压缩和尺寸调整，转换为适合上传的ByteArray。
+     * 将给定的图片Uri进行压缩和尺寸调整，同时通过处理EXIF方向来完美保持原始宽高比，
+     * 最终转换为适合上传的ByteArray。
      *
      * @param context Context对象，用于访问ContentResolver。
      * @param uri 要压缩的图片的Uri。
-     * @param maxWidth 调整后的图片最大宽度。
-     * @param maxHeight 调整后的图片最大高度。
+     * @param maxDimension 图片最长边的目标尺寸。
      * @param quality 压缩质量 (0-100)。
      * @return 包含压缩后JPEG图片数据的ByteArray。
      */
     fun compressImage(
         context: Context,
         uri: Uri,
-        maxWidth: Int = 1080,
-        maxHeight: Int = 1920,
-        quality: Int = 80
+        maxDimension: Int = 1080,
+        quality: Int = 75
     ): ByteArray {
-        val inputStream = context.contentResolver.openInputStream(uri)
-        val options = BitmapFactory.Options().apply {
-            // 首先，只解码边界，不加载整个图片，以获取原始尺寸
-            inJustDecodeBounds = true
-        }
-        BitmapFactory.decodeStream(inputStream, null, options)
-        inputStream?.close()
+        // 使用两个输入流，因为ExifInterface和BitmapFactory.decodeStream都会消耗流
+        val orientation = context.contentResolver.openInputStream(uri)?.use {
+            ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        } ?: ExifInterface.ORIENTATION_NORMAL
 
-        // 计算缩放比例
-        val srcWidth = options.outWidth
-        val srcHeight = options.outHeight
-        val scaleFactor = maxOf(1, minOf(srcWidth / maxWidth, srcHeight / maxHeight))
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
 
-        // 使用计算出的缩放比例来真正地解码、缩放图片
-        val decodeOptions = BitmapFactory.Options().apply {
-            inSampleSize = scaleFactor
-        }
-        val bitmap = context.contentResolver.openInputStream(uri).use {
-            BitmapFactory.decodeStream(it, null, decodeOptions)!!
+        var srcWidth = options.outWidth.toFloat()
+        var srcHeight = options.outHeight.toFloat()
+        if (srcWidth <= 0f || srcHeight <= 0f) return context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
+
+        // --- 根据EXIF方向准备旋转矩阵 ---
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.preScale(-1.0f, 1.0f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.preScale(1.0f, -1.0f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                matrix.postRotate(90f)
+                matrix.preScale(-1.0f, 1.0f)
+            }
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                matrix.postRotate(-90f)
+                matrix.preScale(-1.0f, 1.0f)
+            }
         }
 
-        // 将缩放后的Bitmap压缩为JPEG格式的ByteArray
-        return ByteArrayOutputStream().use {
-            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, it)
-            it.toByteArray()
+        // 对于旋转90或270度的图片，其宽高在计算缩放比例时需要交换
+        if (orientation == ExifInterface.ORIENTATION_ROTATE_90 || orientation == ExifInterface.ORIENTATION_ROTATE_270 || orientation == ExifInterface.ORIENTATION_TRANSPOSE || orientation == ExifInterface.ORIENTATION_TRANSVERSE) {
+            val temp = srcWidth
+            srcWidth = srcHeight
+            srcHeight = temp
         }
+
+        // --- 计算缩放比例 ---
+        var scale = 1.0f
+        if (srcWidth > maxDimension || srcHeight > maxDimension) {
+            scale = if (srcWidth > srcHeight) {
+                maxDimension / srcWidth
+            } else {
+                maxDimension / srcHeight
+            }
+        }
+        matrix.postScale(scale, scale)
+
+        // --- 解码、应用变换并压缩 ---
+        val originalBitmap = context.contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it)
+        } ?: return ByteArray(0)
+
+        // 使用矩阵一次性完成旋转和缩放
+        val transformedBitmap = Bitmap.createBitmap(originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true)
+        if (transformedBitmap != originalBitmap) {
+            originalBitmap.recycle()
+        }
+
+        val outputStream = ByteArrayOutputStream()
+        transformedBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+        transformedBitmap.recycle()
+
+        return outputStream.toByteArray()
     }
 }

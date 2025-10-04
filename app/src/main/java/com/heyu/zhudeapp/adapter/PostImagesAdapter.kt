@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.activity.ImageViewerActivity
 import com.heyu.zhudeapp.databinding.PostImageItemBinding
@@ -35,6 +36,7 @@ class PostImagesAdapter(private val imageUrls: List<String>) : RecyclerView.Adap
             .placeholder(R.drawable.image_placeholder) // 先显示一个柔和的灰色占位图
             .error(R.drawable.image_placeholder)       // 加载失败时也显示占位图
             .thumbnail(0.1f) // 先加载一个10%尺寸的模糊缩略图，然后再加载全图
+            .diskCacheStrategy(DiskCacheStrategy.ALL) // Cache both original and resized images
             .into(holder.binding.postImageItemView)
 
         // 设置点击监听器，用于打开新的图片查看器页面
