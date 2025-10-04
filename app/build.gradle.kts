@@ -55,6 +55,7 @@ dependencies {
     implementation("com.airbnb.android:lottie:6.6.10")//lottie
     implementation(platform("io.github.jan-tennert.supabase:bom:3.2.3"))
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
+    implementation("io.github.jan-tennert.supabase:storage-kt")
     implementation("io.ktor:ktor-client-android:3.0.0")
 
 }

@@ -1,21 +1,22 @@
+
 [versions]
-agp = "8.12.3"
-kotlin = "2.0.21"
-ksp = "2.0.0-1.0.22"
-coreKtx = "1.17.0"
+agp = "8.4.0"
+kotlin = "2.0.0"
+ksp = "2.0.0-1.0.21"
+coreKtx = "1.12.0"
 junit = "4.13.2"
-junitVersion = "1.3.0"
-espressoCore = "3.7.0"
-appcompat = "1.7.1"
-material = "1.13.0"
-activity = "1.11.0"
-constraintlayout = "2.2.1"
+junitVersion = "1.1.5"
+espressoCore = "3.5.1"
+appcompat = "1.6.1"
+material = "1.11.0"
+activity = "1.9.0"
+constraintlayout = "2.1.4"
 glide = "4.16.0"
 toasty = "1.5.2"
-lottie = "6.6.10"
+lottie = "6.4.0"
 room = "2.6.1"
-fragmentKtx = "1.8.0"
-firebaseFirestoreKtx = "26.0.1"
+fragmentKtx = "1.7.1"
+firebaseFirestoreKtx = "25.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -39,4 +40,3 @@ firebase-firestore-ktx = { group = "com.google.firebase", name = "firebase-fires
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
-
