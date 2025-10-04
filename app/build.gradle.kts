@@ -57,12 +57,12 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    implementation("com.github.bumptech.glide:glide:4.16.0")//Glide
-    implementation("com.github.GrenderG:Toasty:1.5.2")//Toasty
-    implementation("com.airbnb.android:lottie:6.4.0")//lottie
+    implementation(libs.glide)//Glide
+    implementation(libs.toasty)//Toasty
+    implementation(libs.lottie)//lottie
 
     // Kotlinx Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation(libs.kotlinx.serialization.json)
 
     // Supabase
     implementation(platform("io.github.jan-tennert.supabase:bom:2.5.3"))
@@ -72,5 +72,7 @@ dependencies {
     // Ktor - Explicitly use a version compatible with Supabase BOM 2.5.3
     implementation("io.ktor:ktor-client-android:2.3.11")
     implementation("io.ktor:ktor-client-content-negotiation:2.3.11")
+
+    implementation(libs.photoview)
 
 }
