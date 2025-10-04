@@ -9,6 +9,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.databinding.PostItemBinding
+import com.heyu.zhudeapp.utils.DateUtils
 
 // Change 'val' to 'var' to make the list updatable
 class PostAdapter(private var posts: List<Post>) : RecyclerView.Adapter<PostAdapter.PostViewHolder>() {
@@ -40,7 +41,7 @@ class PostAdapter(private var posts: List<Post>) : RecyclerView.Adapter<PostAdap
         fun bind(post: Post) {
             binding.postTextContent.text = post.content
             // You might want to format this timestamp nicely in the future
-            binding.postTimestamp.text = post.createdAt
+            binding.postTimestamp.text = DateUtils.formatTime(post.createdAt)
 
             if (post.imageUrls.isNotEmpty()) {
                 binding.postImagesRecyclerView.visibility = View.VISIBLE
