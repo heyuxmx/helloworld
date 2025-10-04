@@ -87,7 +87,7 @@ class CreatePostActivity : AppCompatActivity() {
 
                 // 使用包含所有图片URL的列表创建动态
                 SupabaseModule.createPost(content, imageUrls)
-                Toasty.success(this@CreatePostActivity, "发布成功").show()
+                Toasty.success(this@CreatePostActivity, "发布成功！").show()
                 finish()
             } catch (e: Exception) {
                 Toasty.error(this@CreatePostActivity, "发布失败: ${e.message}").show()

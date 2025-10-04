@@ -73,7 +73,8 @@ class SecondFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val posts = SupabaseModule.getPosts()
-                postAdapter.updatePosts(posts)
+                // 将获取到的动态列表反转，以实现倒序展示
+                postAdapter.updatePosts(posts.reversed())
             } catch (e: Exception) {
                 // 可以在这里添加错误提示，例如 Toast
             }

@@ -2,7 +2,7 @@
     <string name="app_name">zhudeApp</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
-    <string name="post_content_text">分享今天的感受...</string>
+    <string name="post_content_text">分享新鲜事...</string>
     <string name="add_picture">添加图片</string>
     <string name="publish">发布</string>
     <string name="gzzhshizhu">高詹子慧是猪</string>
