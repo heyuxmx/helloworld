@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "523515334943",
+    "project_id": "zhudeapp-push",
+    "storage_bucket": "zhudeapp-push.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:523515334943:android:d7aba4c1bae5171cfa602a",
+        "android_client_info": {
+          "package_name": "com.heyu.zhudeapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC2eTopWez1trOwxEVvx3QQH09CTSw9lpw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

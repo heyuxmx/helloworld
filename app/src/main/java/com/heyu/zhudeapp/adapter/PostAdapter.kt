@@ -8,6 +8,7 @@ import androidx.core.net.toUri
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.heyu.zhudeapp.R
+import com.heyu.zhudeapp.activity.ImageViewerActivity
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.databinding.PostItemBinding
 import com.heyu.zhudeapp.utils.DateUtils
@@ -81,7 +82,20 @@ class PostAdapter(
                 }
 
                 val layoutManager = GridLayoutManager(itemView.context, spanCount)
-                val imagesAdapter = PostImagesAdapter(imageUris)
+                
+                // Create the click listener for the images adapter
+                val onImageClickListener = OnImageClickListener { clickedPosition ->
+                    val context = itemView.context
+                    // When an image is clicked, start the ImageViewerActivity with all images
+                    val intent = ImageViewerActivity.newIntent(
+                        context = context,
+                        imageUrls = ArrayList(imageUris), // Pass the full list of images
+                        currentPosition = clickedPosition // Pass the position of the clicked image
+                    )
+                    context.startActivity(intent)
+                }
+
+                val imagesAdapter = PostImagesAdapter(imageUris, onImageClickListener)
 
                 binding.postImagesRecyclerView.layoutManager = layoutManager
                 binding.postImagesRecyclerView.adapter = imagesAdapter

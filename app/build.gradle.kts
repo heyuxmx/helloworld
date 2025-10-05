@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
+    // Apply the Google Services plugin
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -36,12 +38,10 @@ android {
     productFlavors {
         create("xiaogao") {
             dimension = "version"
-            applicationIdSuffix = ".xiaogao"
         }
         
         create("xiaoxu") {
             dimension = "version"
-            applicationIdSuffix = ".xiaoxu"
         }
     }
 
@@ -79,6 +79,12 @@ dependencies {
     implementation(libs.glide)//Glide
     implementation(libs.toasty)//Toasty
     implementation(libs.lottie)//lottie
+
+    // Firebase
+    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+    implementation("com.google.firebase:firebase-common-ktx")
+    implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-analytics-ktx")
 
     // Kotlinx Serialization
     implementation(libs.kotlinx.serialization.json)
