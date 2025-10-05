@@ -28,6 +28,23 @@ android {
             )
         }
     }
+
+    // 1. Define a flavor dimension to group your flavors
+    flavorDimensions += "version"
+
+    // 2. Define your two product flavors
+    productFlavors {
+        create("xiaogao") {
+            dimension = "version"
+            applicationIdSuffix = ".xiaogao"
+        }
+        
+        create("xiaoxu") {
+            dimension = "version"
+            applicationIdSuffix = ".xiaoxu"
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

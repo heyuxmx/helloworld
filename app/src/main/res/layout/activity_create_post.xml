@@ -29,6 +29,7 @@
         android:layout_marginEnd="16dp"
         android:background="@color/white"
         android:contentDescription="@string/add_picture"
+        android:backgroundTint="#E9D2F0"
         android:scaleType="centerCrop"
         android:src="@drawable/ic_add"
         app:layout_constraintEnd_toEndOf="parent"
@@ -42,10 +43,11 @@
         android:layout_marginEnd="16dp"
         android:orientation="horizontal"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/add_image_button"
+        app:layout_constraintBottom_toBottomOf="@+id/add_image_button"
+        app:layout_constraintEnd_toStartOf="@id/add_image_button"
+        app:layout_constraintTop_toTopOf="@+id/add_image_button"
         tools:listitem="@layout/selected_image_item" />
 
     <com.google.android.material.textfield.TextInputLayout
@@ -81,9 +83,11 @@
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        tools:visibility="visible"/>
+        app:layout_constraintVertical_bias="0.678"
+        tools:visibility="visible" />
 
     <com.airbnb.lottie.LottieAnimationView
         android:layout_width="388dp"

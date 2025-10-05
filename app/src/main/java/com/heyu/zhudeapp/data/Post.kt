@@ -3,6 +3,7 @@ package com.heyu.zhudeapp.data
 import android.annotation.SuppressLint
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @SuppressLint("UnsafeOptInUsageError")
 @Serializable
@@ -16,5 +17,14 @@ data class Post(
     // They need to have default values to handle the creation-time case.
     val id: Long = 0,
     @SerialName("created_at")
-    val createdAt: String = ""
+    val createdAt: String = "",
+
+    // --- Fields for Optimistic UI ---
+    @Transient
+    val isUploading: Boolean = false,
+    @Transient
+    val uploadFailed: Boolean = false,
+    @Transient
+    val localImageUris: List<String> = emptyList()
+
 ) : java.io.Serializable
