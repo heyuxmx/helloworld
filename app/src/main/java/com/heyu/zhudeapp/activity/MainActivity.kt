@@ -1,25 +1,31 @@
 package com.heyu.zhudeapp.activity
 
+import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
-import com.heyu.zhudeapp.Fragment.FirstFragment
-import com.heyu.zhudeapp.Fragment.SecondFragment
-import com.heyu.zhudeapp.Fragment.ThirdFragment
+import com.heyu.zhudeapp.Fragment.DatecountFragment
+import com.heyu.zhudeapp.Fragment.PostFragment
+import com.heyu.zhudeapp.Fragment.WelcomeFragment
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.databinding.ActivityMainBinding
+import com.heyu.zhudeapp.service.MyFirebaseMessagingService
+import com.heyu.zhudeapp.viewmodel.MainViewModel
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var fragmentlist: List<Fragment>
+    private val mainViewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         binding= ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        fragmentlist = listOf(FirstFragment(), SecondFragment(), ThirdFragment())
+        fragmentlist = listOf(WelcomeFragment(), PostFragment(), DatecountFragment())
         // Make sure to show the first fragment initially if not already handled
         if (savedInstanceState == null) {
             showFragment(fragmentlist[0])
@@ -44,7 +50,37 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+
+        // Handle the intent that started the activity, in case it's from a notification
+        handleIntent(intent)
     }
+
+    // The parameter must be non-nullable (Intent) to correctly override the parent method.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    /**
+     * Checks the intent for a post ID and passes it to the shared ViewModel.
+     */
+    private fun handleIntent(intent: Intent) {
+        if (intent.hasExtra(MyFirebaseMessagingService.EXTRA_POST_ID)) {
+            val postId = intent.getStringExtra(MyFirebaseMessagingService.EXTRA_POST_ID)
+            Log.d("MainActivity", "Notification click received with post ID: $postId")
+
+            if (postId != null) {
+                // Switch to the second tab where the post list is located
+                binding.bottomNavigation.selectedItemId = R.id.tab_second
+
+                // Pass the post ID to the shared ViewModel. This is a robust way to communicate
+                // with the fragment, regardless of its lifecycle state.
+                mainViewModel.onPostIdReceived(postId)
+                Log.d("MainActivity", "Posted post ID $postId to MainViewModel.")
+            }
+        }
+    }
+
 
     private var currentFragment: Fragment? = null
     // Changed R.id.main to R.id.fragment_container_view

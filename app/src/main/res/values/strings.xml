@@ -16,4 +16,6 @@
     <string name="delete_post_message">你确定要删除这条动态吗？</string>
     <string name="delete">删除</string>
     <string name="cancel">取消</string>
+    <string name="create_post_title">创建动态</string>
+    <string name="add_anniversary">添加纪念日</string>
 </resources>

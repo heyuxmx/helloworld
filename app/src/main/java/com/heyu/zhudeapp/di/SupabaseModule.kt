@@ -44,18 +44,34 @@ object SupabaseModule {
     }
 
     /**
-     * 创建一条新的动态。
+     * 创建一条新的动态，并验证插入是否成功。
+     * 如果插入失败（通常因为RLS策略），会抛出异常。
      * @param content 动态的文本内容。
      * @param imageUrls 可选的图片URL列表。
+     * @return 创建成功并从数据库返回的Post对象。
      */
-    suspend fun createPost(content: String, imageUrls: List<String> = emptyList()) {
+    suspend fun createPost(content: String, imageUrls: List<String> = emptyList()): Post {
         val newPost = Post(
             content = content,
             imageUrls = imageUrls
             // 备注: userId, username 等字段未来可以和用户认证流程结合
         )
-        supabase.postgrest[POST_TABLE].insert(newPost)
+
+        // 步骤 1: 插入数据并请求返回插入的记录
+        val result = supabase.postgrest[POST_TABLE].insert(newPost) {
+            select() // 关键：请求将插入的数据返回
+        }.decodeList<Post>()
+
+        // 步骤 2: 验证返回的列表是否为空
+        if (result.isEmpty()) {
+            // 步骤 3: 如果为空，说明插入未成功，抛出描述性异常
+            throw IllegalStateException("Post creation failed: The post was not created. This is likely due to Row-Level Security (RLS) policies. Please check the 'INSERT' policy on the 'posts' table in your Supabase dashboard.")
+        }
+
+        // 步骤 4: 返回创建成功的Post对象
+        return result.first()
     }
+
 
     /**
      * Deletes a post from the database and verifies the deletion.

@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -14,17 +15,22 @@ import com.heyu.zhudeapp.adapter.OnItemLongClickListener
 import com.heyu.zhudeapp.adapter.PostAdapter
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.databinding.FragmentSecondBinding
+import com.heyu.zhudeapp.viewmodel.MainViewModel
 import com.heyu.zhudeapp.viewmodel.PostViewModel
 import es.dmoral.toasty.Toasty
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
-class SecondFragment : Fragment(), OnItemLongClickListener {
+class PostFragment : Fragment(), OnItemLongClickListener {
 
     private var _binding: FragmentSecondBinding? = null
     private val binding get() = _binding!!
 
+    // This ViewModel is for the posts list of this fragment
     private lateinit var viewModel: PostViewModel
+    // This ViewModel is shared with MainActivity for navigation events
+    private val mainViewModel: MainViewModel by activityViewModels()
+
     private lateinit var postAdapter: PostAdapter
 
     override fun onCreateView(
@@ -45,21 +51,35 @@ class SecondFragment : Fragment(), OnItemLongClickListener {
         setupFragmentResultListener()
         setupDaysCounter()
 
-        // Post loading is now handled in onResume to ensure the list is always fresh.
+        // Start listening for navigation events from the MainActivity
+        observeNavigation()
     }
 
     override fun onResume() {
         super.onResume()
         // Load posts every time the fragment becomes visible.
-        // This ensures that new posts created in CreatePostActivity are displayed upon return.
         loadPosts()
     }
 
+    private fun observeNavigation() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            mainViewModel.navigateToPost.collect { postId ->
+                if (postId.isNotBlank()) {
+                    // TODO: Replace this Toast with your actual navigation logic
+                    // to open the detail screen for the given postId.
+                    Toasty.info(requireContext(), "接收到通知跳转指令，目标动态ID: $postId", Toasty.LENGTH_LONG).show()
+
+                    // Important: Consume the event after handling it to prevent re-navigation
+                    // on configuration changes (e.g., screen rotation).
+                    mainViewModel.onNavigationComplete()
+                }
+            }
+        }
+    }
+
     private fun setupDaysCounter() {
-        // Use Calendar for API 24+ compatibility and fix the start date.
         val startDate = java.util.Calendar.getInstance().apply {
-            // Set to 2014-12-21. Note: Calendar months are 0-indexed (DECEMBER = 11).
-            set(2024, java.util.Calendar.DECEMBER, 21, 0, 0, 0)
+            set(2024, java.util.Calendar.DECEMBER, 2, 0, 0, 0)
             set(java.util.Calendar.MILLISECOND, 0)
         }
         val today = java.util.Calendar.getInstance().apply {
@@ -70,13 +90,11 @@ class SecondFragment : Fragment(), OnItemLongClickListener {
         }
 
         val diffInMillis = today.timeInMillis - startDate.timeInMillis
-        // Add 1 to include the start day in the count.
         val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(diffInMillis) + 1
         binding.daysTextView.text = "今天是我们在一起的第${days}天啦"
     }
 
     private fun setupFragmentResultListener() {
-        // Use the corrected keys from the companion object of DeleteConfirmationDialogFragment
         childFragmentManager.setFragmentResultListener(DeleteConfirmationDialogFragment.REQUEST_KEY, this) { _, bundle ->
             val confirmed = bundle.getBoolean(DeleteConfirmationDialogFragment.BUNDLE_KEY_CONFIRMED)
             if (confirmed) {
@@ -89,11 +107,8 @@ class SecondFragment : Fragment(), OnItemLongClickListener {
         }
     }
 
-
     private fun setupRecyclerView() {
-        // Pass 'this' as the long click listener
         postAdapter = PostAdapter(emptyList(), this)
-        // A standard LinearLayoutManager is used to display items from top to bottom.
         binding.postsRecyclerView.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = postAdapter
@@ -105,7 +120,6 @@ class SecondFragment : Fragment(), OnItemLongClickListener {
             postAdapter.updatePosts(posts)
         }
         viewModel.error.observe(viewLifecycleOwner) { error ->
-            // Use Toasty for consistency
             Toasty.error(requireContext(), error, Toasty.LENGTH_LONG).show()
         }
     }
@@ -130,13 +144,11 @@ class SecondFragment : Fragment(), OnItemLongClickListener {
             try {
                 viewModel.deletePost(post)
                 Toasty.success(requireContext(), "删除成功!", Toasty.LENGTH_SHORT).show()
-                // The observer will handle the UI update by reloading the posts
             } catch (e: Exception) {
                 Toasty.error(requireContext(), "删除失败: ${e.message}", Toasty.LENGTH_LONG).show()
             }
         }
     }
-
 
     override fun onDestroyView() {
         super.onDestroyView()
