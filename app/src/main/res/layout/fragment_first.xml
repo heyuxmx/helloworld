@@ -33,11 +33,11 @@
         android:id="@+id/welcome"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/house"
+        android:layout_below="@id/house"
         android:layout_marginTop="37dp"
         android:fontFamily="@font/house"
         android:layout_centerHorizontal="true"
-        android:text="欢迎来到小高妙妙屋!"
+        android:text="@string/welcome_text"
         android:textColor="#00BCD4"
         android:textSize="30sp" />
 
