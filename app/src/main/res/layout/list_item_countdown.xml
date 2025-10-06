@@ -18,10 +18,12 @@
             android:id="@+id/event_name_text"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/house"
             android:textAppearance="?attr/textAppearanceHeadline6"
+            android:textSize="18sp"
+            app:layout_constraintEnd_toStartOf="@+id/days_remaining_label"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/days_remaining_label"
             tools:text="在一起的纪念日" />
 
         <TextView
@@ -41,20 +43,20 @@
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceHeadline4"
             android:textColor="@color/lightblue"
-            app:layout_constraintEnd_toStartOf="@id/days_remaining_suffix"
-            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/days_remaining_suffix"
+            app:layout_constraintTop_toTopOf="parent"
             tools:text="15" />
 
         <TextView
             android:id="@+id/days_remaining_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="还有"
             android:layout_marginEnd="8dp"
+            android:text="还有"
             android:textAppearance="?attr/textAppearanceBody1"
             app:layout_constraintBaseline_toBaselineOf="@id/days_remaining_text"
-            app:layout_constraintEnd_toStartOf="@id/days_remaining_text"/>
+            app:layout_constraintEnd_toStartOf="@id/days_remaining_text" />
 
         <TextView
             android:id="@+id/days_remaining_suffix"
@@ -62,8 +64,8 @@
             android:layout_height="wrap_content"
             android:text="天"
             android:textAppearance="?attr/textAppearanceBody1"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintBaseline_toBaselineOf="@id/days_remaining_text" />
+            app:layout_constraintBaseline_toBaselineOf="@id/days_remaining_text"
+            app:layout_constraintEnd_toEndOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

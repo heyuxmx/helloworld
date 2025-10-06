@@ -1,54 +1,52 @@
 package com.heyu.zhudeapp.Fragment.countdown
 
 import android.app.Dialog
-import android.content.Context
 import android.os.Bundle
-import androidx.appcompat.app.AlertDialog
+import androidx.core.os.bundleOf
 import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.setFragmentResult
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.heyu.zhudeapp.databinding.DialogAddAnniversaryBinding
-import java.util.Calendar
 
 class AddAnniversaryDialogFragment : DialogFragment() {
 
-    interface AddAnniversaryDialogListener {
-        fun onAnniversaryAdded(name: String, month: Int, day: Int)
-    }
-
-    private var listener: AddAnniversaryDialogListener? = null
-
-    override fun onAttach(context: Context) {
-        super.onAttach(context)
-        // Try to set the listener from the parent Fragment
-        listener = parentFragment as? AddAnniversaryDialogListener
-    }
-
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        return activity?.let {
-            val builder = AlertDialog.Builder(it)
-            val inflater = requireActivity().layoutInflater
-            val binding = DialogAddAnniversaryBinding.inflate(inflater)
+        // Use MaterialAlertDialogBuilder for consistent styling with the rest of the app
+        val builder = MaterialAlertDialogBuilder(requireContext())
+        val inflater = requireActivity().layoutInflater
+        val binding = DialogAddAnniversaryBinding.inflate(inflater)
 
-            builder.setView(binding.root)
-                .setTitle("添加新的纪念日")
-                .setPositiveButton("保存") { _, _ ->
-                    val name = binding.editTextAnniversaryName.text.toString()
-                    val day = binding.datePickerAnniversary.dayOfMonth
-                    val month = binding.datePickerAnniversary.month + 1 // Month is 0-based
+        builder.setView(binding.root)
+            .setTitle("添加新的纪念日")
+            .setPositiveButton("保存") { _, _ ->
+                val name = binding.editTextAnniversaryName.text.toString()
+                val day = binding.datePickerAnniversary.dayOfMonth
+                val month = binding.datePickerAnniversary.month + 1 // Month is 0-based
 
-                    if (name.isNotBlank()) {
-                        listener?.onAnniversaryAdded(name, month, day)
-                    }
+                if (name.isNotBlank()) {
+                    // Use the Fragment Result API to send data back safely.
+                    // This avoids direct listener coupling and is lifecycle-safe.
+                    setFragmentResult(REQUEST_KEY, bundleOf(
+                        KEY_NAME to name,
+                        KEY_MONTH to month,
+                        KEY_DAY to day
+                    ))
                 }
-                .setNegativeButton("取消") { dialog, _ ->
-                    dialog.cancel()
-                }
+            }
+            .setNegativeButton("取消") { dialog, _ ->
+                dialog.cancel()
+            }
 
-            builder.create()
-        } ?: throw IllegalStateException("Activity cannot be null")
+        return builder.create()
     }
 
-    override fun onDetach() {
-        super.onDetach()
-        listener = null
+    companion object {
+        // Define TAG for showing the dialog
+        const val TAG = "AddAnniversaryDialogFragment"
+        // Define keys for the request and the data bundle to ensure type safety and consistency.
+        const val REQUEST_KEY = "addAnniversaryRequest"
+        const val KEY_NAME = "name"
+        const val KEY_MONTH = "month"
+        const val KEY_DAY = "day"
     }
 }

@@ -1,18 +1,29 @@
 package com.heyu.zhudeapp.Fragment.countdown
 
-import android.icu.util.ChineseCalendar
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.DatePicker
+import android.widget.EditText
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.switchmaterial.SwitchMaterial
+import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.adapter.CountdownAdapter
 import com.heyu.zhudeapp.databinding.FragmentHolidaysCountdownBinding
+import com.heyu.zhudeapp.model.AnniversaryRepository
 import com.heyu.zhudeapp.model.CountdownItem
-import java.time.Instant
+import com.heyu.zhudeapp.model.CustomAnniversary
+import com.heyu.zhudeapp.util.LunarCalendar.getLunarDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 class HolidaysCountdownFragment : Fragment() {
@@ -20,21 +31,24 @@ class HolidaysCountdownFragment : Fragment() {
     private var _binding: FragmentHolidaysCountdownBinding? = null
     private val binding get() = _binding!!
 
-    // 新方法：通过固定的农历月、日来定义农历节日
-    // 注意: ChineseCalendar 的月份是从0开始的 (0=正月), 日期是从1开始的
+    private lateinit var repository: AnniversaryRepository
+    private lateinit var adapter: CountdownAdapter
+
     private val lunarHolidays = mapOf(
-        "春节" to (0 to 1),   // 正月初一
-        "端午节" to (4 to 5), // 五月初五
-        "中秋节" to (7 to 15)  // 八月十五
+        "春节" to (1 to 1),
+        "端午节" to (5 to 5),
+        "中秋节" to (8 to 15)
     )
 
-    // 公历节日定义 (保持不变)
     private val gregorianHolidays = mapOf(
         "元旦" to (1 to 1),
-        "清明节" to (4 to 4), // 为简化，清明节固定为4月4日
+        "清明节" to (4 to 5),
         "劳动节" to (5 to 1),
         "国庆节" to (10 to 1)
     )
+
+    private val builtInHolidayNames by lazy { lunarHolidays.keys + gregorianHolidays.keys }
+
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -42,93 +56,186 @@ class HolidaysCountdownFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentHolidaysCountdownBinding.inflate(inflater, container, false)
+        repository = AnniversaryRepository(requireContext())
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        setupRecyclerView()
+        loadAndDisplayData()
 
-        // 1. 结合公历和农历数据，计算出所有节日下一个最近的日期和倒计时
-        val processedHolidays = calculateNextHolidayDates()
+        binding.fabAddAnniversary.setOnClickListener {
+            showAddAnniversaryDialog()
+        }
+    }
 
-        // 2. 将计算结果按剩余天数升序排序
-        val sortedHolidays = processedHolidays.sortedBy { it.daysRemaining }
-
-        // 3. 将最终结果交给适配器显示
-        val adapter = CountdownAdapter(sortedHolidays.toMutableList())
+    private fun setupRecyclerView() {
+        adapter = CountdownAdapter(mutableListOf())
         binding.recyclerView.layoutManager = LinearLayoutManager(context)
         binding.recyclerView.adapter = adapter
+
+        adapter.onItemLongClickListener = {
+            showDeleteConfirmationDialog(it)
+        }
     }
 
-    /**
-     * 智能计算所有节日的下一个倒数日
-     * 使用 Android 内置的 ChineseCalendar, 真正做到“一劳永逸”
-     */
-    private fun calculateNextHolidayDates(): List<CountdownItem> {
-        val today = LocalDate.now()
-        val holidayItems = mutableListOf<CountdownItem>()
-        val allHolidayNames = gregorianHolidays.keys + lunarHolidays.keys
+    private fun loadAndDisplayData() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val today = LocalDate.now()
 
-        for (name in allHolidayNames) {
-            val nextEventDate: LocalDate
-
-            if (lunarHolidays.containsKey(name)) {
-                // --- 全新的、动态的农历计算逻辑 ---
-                val (lunarMonth, lunarDay) = lunarHolidays[name]!!
-
-                // 创建一个以今天为上下文的农历日历实例
-                val calendar = ChineseCalendar()
-
-                // 将日历设置为当前农历年份的指定农历月、日
-                calendar.set(ChineseCalendar.MONTH, lunarMonth)
-                calendar.set(ChineseCalendar.IS_LEAP_MONTH, 0) // 假设节日不在闰月
-                calendar.set(ChineseCalendar.DAY_OF_MONTH, lunarDay)
-
-                // 【修正】使用官方推荐的、最可靠的方式进行日历转换
-                var gregorianDate = Instant.ofEpochMilli(calendar.timeInMillis)
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDate()
-
-                // 【终极修正】如果计算出的公历日期在今天之前，说明今年的这个节日已经过了。
-                // 我们需要循环查找，直到找到第一个在今天或今天之后的节日日期。
-                // 使用 "while" 循环可以健壮地处理所有边界情况。
-                while (gregorianDate.isBefore(today)) {
-                    // 让农历年份+1, 自动计算下一年的节日日期
-                    calendar.add(ChineseCalendar.YEAR, 1)
-                    // 再次使用可靠的方式进行转换
-                    gregorianDate = Instant.ofEpochMilli(calendar.timeInMillis)
-                        .atZone(ZoneId.systemDefault())
-                        .toLocalDate()
-                }
-                nextEventDate = gregorianDate
-
-            } else {
-                // --- 公历节日计算逻辑 (保持不变) ---
-                val (month, day) = gregorianHolidays[name]!!
-                val dateInCurrentYear = LocalDate.of(today.year, month, day)
-                nextEventDate = if (dateInCurrentYear.isBefore(today)) {
-                    dateInCurrentYear.plusYears(1)
+            // 1. Calculate built-in holidays (always recurring)
+            val calculatedBuiltIns = (lunarHolidays.keys + gregorianHolidays.keys).map {
+                val nextDate = if (lunarHolidays.containsKey(it)) {
+                    val (lunarMonth, lunarDay) = lunarHolidays[it]!!
+                    getLunarDate(lunarMonth, lunarDay)
                 } else {
-                    dateInCurrentYear
+                    val (month, day) = gregorianHolidays[it]!!
+                    getNextGregorianDate(today, month, day)
                 }
+                createCountdownItem(it, nextDate, today, isDeletable = false)
             }
 
-            // 使用计算出的精确日期创建倒计时项目
-            val daysRemaining = ChronoUnit.DAYS.between(today, nextEventDate)
-            val dateOverride = String.format("%d年%d月%d日", nextEventDate.year, nextEventDate.monthValue, nextEventDate.dayOfMonth)
-            holidayItems.add(
-                CountdownItem(
-                    name = name,
-                    month = nextEventDate.monthValue,
-                    day = nextEventDate.dayOfMonth,
-                    dateOverride = dateOverride,
-                    daysRemaining = daysRemaining
-                )
-            )
+            // 2. Load and calculate custom holidays from the unified repository
+            val customHolidays = repository.getAnniversaries()
+                .filter { it.name !in builtInHolidayNames } // Filter out duplicates
+                .mapNotNull { anniversary ->
+                    val nextDate: LocalDate
+                    if (anniversary.year != null) {
+                        // This is a one-time event
+                        nextDate = LocalDate.of(anniversary.year, anniversary.month, anniversary.day)
+                        if (nextDate.isBefore(today)) {
+                            return@mapNotNull null // Filter out past one-time events
+                        }
+                    } else {
+                        // This is a recurring event
+                        nextDate = if (anniversary.isLunar) {
+                            getLunarDate(anniversary.month, anniversary.day)
+                        } else {
+                            getNextGregorianDate(today, anniversary.month, anniversary.day)
+                        }
+                    }
+                    createCountdownItem(anniversary.name, nextDate, today, isDeletable = true)
+                }
+
+            // 3. Combine and sort
+            val combinedList = (calculatedBuiltIns + customHolidays).sortedBy { it.daysRemaining }
+
+            withContext(Dispatchers.Main) {
+                adapter.updateList(combinedList)
+            }
         }
-        return holidayItems
     }
 
+    private fun showAddAnniversaryDialog() {
+        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_add_anniversary, null)
+        val nameEditText = dialogView.findViewById<EditText>(R.id.edit_text_anniversary_name)
+        val datePicker = dialogView.findViewById<DatePicker>(R.id.date_picker_anniversary)
+        val lunarSwitch = dialogView.findViewById<SwitchMaterial>(R.id.switch_lunar)
+
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("添加新节日")
+            .setView(dialogView)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("保存") { _, _ ->
+                val name = nameEditText.text.toString()
+
+                if (name.isBlank()) {
+                    Toast.makeText(requireContext(), "名称不能为空", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                if (name in builtInHolidayNames) {
+                    Toast.makeText(requireContext(), "这是一个内置节日，无法重复添加", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+
+                val selectedYear = datePicker.year
+                // Heuristic: If the selected year is not the current year, treat it as a one-time event.
+                val eventYear = if (selectedYear != LocalDate.now().year) selectedYear else null
+
+                val newAnniversary = CustomAnniversary(
+                    name = name,
+                    month = datePicker.month + 1, // DatePicker month is 0-indexed
+                    day = datePicker.dayOfMonth,
+                    year = eventYear,
+                    isLunar = lunarSwitch.isChecked
+                )
+                addNewHoliday(newAnniversary)
+            }
+            .show()
+    }
+
+    private fun addNewHoliday(newAnniversary: CustomAnniversary) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val currentList = repository.getAnniversaries()
+            if (currentList.any { it.name == newAnniversary.name }) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(requireContext(), "已存在同名节日", Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
+
+            val newList = currentList + newAnniversary
+            repository.saveAnniversaries(newList)
+
+            withContext(Dispatchers.Main) {
+                loadAndDisplayData()
+            }
+        }
+    }
+
+    private fun showDeleteConfirmationDialog(item: CountdownItem) {
+        if (!item.isDeletable) {
+            return // Do not show dialog for non-deletable items
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle("删除节日")
+            .setMessage("您确定要删除 ''${item.name}'' 吗？")
+            .setPositiveButton("删除") { _, _ ->
+                deleteHoliday(item)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun deleteHoliday(itemToDelete: CountdownItem) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val currentList = repository.getAnniversaries()
+            val newList = currentList.filter { it.name != itemToDelete.name }
+
+            if (newList.size < currentList.size) {
+                repository.saveAnniversaries(newList)
+                withContext(Dispatchers.Main) {
+                    loadAndDisplayData()
+                }
+            }
+        }
+    }
+
+
+    private fun getNextGregorianDate(today: LocalDate, month: Int, day: Int): LocalDate {
+        val dateInCurrentYear = LocalDate.of(today.year, month, day)
+        return if (dateInCurrentYear.isBefore(today)) {
+            dateInCurrentYear.plusYears(1)
+        } else {
+            dateInCurrentYear
+        }
+    }
+
+    private fun createCountdownItem(name: String, nextEventDate: LocalDate, today: LocalDate, isDeletable: Boolean): CountdownItem {
+        val daysRemaining = ChronoUnit.DAYS.between(today, nextEventDate)
+        val dateOverride = String.format("%d年%d月%d日", nextEventDate.year, nextEventDate.monthValue, nextEventDate.dayOfMonth)
+
+        return CountdownItem(
+            name = name,
+            month = nextEventDate.monthValue,
+            day = nextEventDate.dayOfMonth,
+            dateOverride = dateOverride,
+            daysRemaining = daysRemaining,
+            isDeletable = isDeletable
+        )
+    }
 
     override fun onDestroyView() {
         super.onDestroyView()
