@@ -91,7 +91,7 @@ class PostFragment : Fragment(), OnItemLongClickListener {
 
         val diffInMillis = today.timeInMillis - startDate.timeInMillis
         val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(diffInMillis) + 1
-        binding.daysTextView.text = "今天是我们在一起的第${days}天啦"
+        binding.daysNumberTextView.text = days.toString()
     }
 
     private fun setupFragmentResultListener() {
