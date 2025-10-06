@@ -45,7 +45,7 @@
         android:id="@+id/uploading_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#80FFFFFF"
+        android:background="#B3FFFFFF"
         android:visibility="gone"
         tools:visibility="visible">
 

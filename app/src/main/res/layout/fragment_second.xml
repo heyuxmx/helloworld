@@ -39,7 +39,7 @@
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/house"
                 android:textAppearance="?attr/textAppearanceListItem"
-                android:textColor="#FF9999"
+                android:textColor="@color/lightred"
                 android:textSize="48sp"
                 android:textStyle="bold"
                 tools:text="n"
