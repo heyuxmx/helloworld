@@ -2,8 +2,14 @@
     <!-- Base application theme. -->
     <style name="Base.Theme.ZhudeApp" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="colorPrimary">@color/lightblue</item>
+        <item name="materialAlertDialogTheme">@style/App.Theme.AlertDialog</item>
     </style>
 
     <style name="Theme.ZhudeApp" parent="Base.Theme.ZhudeApp" />
+
+    <!-- Custom AlertDialog theme -->
+    <style name="App.Theme.AlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorPrimary">@color/lightblue</item>
+    </style>
 </resources>
