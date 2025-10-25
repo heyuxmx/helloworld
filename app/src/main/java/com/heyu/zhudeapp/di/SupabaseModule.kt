@@ -6,14 +6,19 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
+import android.util.Log
+import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.postgrest.rpc
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 import java.util.UUID
 
@@ -23,7 +28,9 @@ import java.util.UUID
 object SupabaseModule {
 
     private const val POST_TABLE = "posts"
+    private const val COMMENTS_TABLE = "comments"
     private const val POST_IMAGES_BUCKET = "post-images"
+    private const val TAG = "SupabaseModule"
 
     val supabase: SupabaseClient = createSupabaseClient(
         supabaseUrl = "https://bvgtzgxscnqhugjirgzp.supabase.co",
@@ -32,6 +39,48 @@ object SupabaseModule {
         install(Postgrest)
         install(Storage)
     }
+
+    /**
+     * Calls an RPC function to increment the likes of a post.
+     * This version includes detailed logging for diagnostics and uses a standard parameter name.
+     * @param postId The id of the post to like.
+     */
+    suspend fun likePost(postId: Long) {
+        Log.d(TAG, "Attempting to like post with ID: $postId")
+        try {
+            supabase.postgrest.rpc(
+                function = "increment_likes",
+                parameters = buildJsonObject {
+                    put("post_id", postId) // Using a more standard parameter name.
+                }
+            )
+            Log.d(TAG, "Successfully called increment_likes RPC for post ID: $postId")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error calling increment_likes RPC for post ID: $postId", e)
+            // Re-throw the exception to let the caller know something went wrong.
+            throw e
+        }
+    }
+
+
+    /**
+     * 为指定的帖子添加一条新的评论。
+     * @param postId 评论所属的帖子的ID。
+     * @param commentText 评论的文本内容。
+     * @return 创建成功并从数据库返回的Comment对象。
+     */
+    suspend fun addComment(postId: Long, commentText: String): Comment {
+        val newComment = Comment(
+            postId = postId,
+            userName = "热心网友", // Hardcoded username as per the requirement
+            text = commentText
+        )
+
+        return supabase.postgrest[COMMENTS_TABLE].insert(newComment) {
+            select()
+        }.decodeSingle<Comment>()
+    }
+
 
     /**
      * 从数据库获取所有动态的列表，并严格按照创建时间降序排列。

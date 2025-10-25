@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -35,6 +35,51 @@
             tools:srcCompat="@tools:sample/backgrounds/scenic"
             tools:visibility="visible" />
 
+        <!-- Like and Comment Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/like_icon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:background="@android:color/transparent"
+                app:srcCompat="@drawable/hollowheart"
+                android:contentDescription="Like" />
+
+            <TextView
+                android:id="@+id/like_count_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:textColor="?android:attr/textColorSecondary"
+                tools:text="123" />
+
+            <ImageButton
+                android:id="@+id/comment_icon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginStart="24dp"
+                android:background="@android:color/transparent"
+                app:srcCompat="@android:drawable/ic_dialog_email"
+                app:tint="@null"
+                android:layerType="software"
+                android:contentDescription="@string/comment_button_description"/>
+
+            <TextView
+                android:id="@+id/comment_count_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:textColor="?android:attr/textColorSecondary"
+                tools:text="45" />
+
+        </LinearLayout>
+
     </LinearLayout>
 
-</com.google.android.material.card.MaterialCardView>
+</androidx.cardview.widget.CardView>

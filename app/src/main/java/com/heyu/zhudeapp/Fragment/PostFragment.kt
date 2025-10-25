@@ -26,9 +26,7 @@ class PostFragment : Fragment(), OnItemLongClickListener {
     private var _binding: FragmentSecondBinding? = null
     private val binding get() = _binding!!
 
-    // This ViewModel is for the posts list of this fragment
     private lateinit var viewModel: PostViewModel
-    // This ViewModel is shared with MainActivity for navigation events
     private val mainViewModel: MainViewModel by activityViewModels()
 
     private lateinit var postAdapter: PostAdapter
@@ -51,13 +49,11 @@ class PostFragment : Fragment(), OnItemLongClickListener {
         setupFragmentResultListener()
         setupDaysCounter()
 
-        // Start listening for navigation events from the MainActivity
         observeNavigation()
     }
 
     override fun onResume() {
         super.onResume()
-        // Load posts every time the fragment becomes visible.
         loadPosts()
     }
 
@@ -65,12 +61,7 @@ class PostFragment : Fragment(), OnItemLongClickListener {
         viewLifecycleOwner.lifecycleScope.launch {
             mainViewModel.navigateToPost.collect { postId ->
                 if (postId.isNotBlank()) {
-                    // TODO: Replace this Toast with your actual navigation logic
-                    // to open the detail screen for the given postId.
                     Toasty.info(requireContext(), "接收到通知跳转指令，目标动态ID: $postId", Toasty.LENGTH_LONG).show()
-
-                    // Important: Consume the event after handling it to prevent re-navigation
-                    // on configuration changes (e.g., screen rotation).
                     mainViewModel.onNavigationComplete()
                 }
             }
@@ -108,10 +99,18 @@ class PostFragment : Fragment(), OnItemLongClickListener {
     }
 
     private fun setupRecyclerView() {
-        postAdapter = PostAdapter(emptyList(), this)
+        // Updated constructor for the new PostAdapter
+        postAdapter = PostAdapter(
+            posts = emptyList(),
+            lifecycleScope = viewLifecycleOwner.lifecycleScope,
+            onItemLongClickListener = this // The fragment itself handles the long click
+        )
         binding.postsRecyclerView.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = postAdapter
+            // **[ULTIMATE FIX]** Disable view recycling to work around a deep, persistent rendering bug.
+            // This is a last-resort, "nuclear option" to ensure every item view is created fresh.
+            recycledViewPool.setMaxRecycledViews(0, 0)
         }
     }
 

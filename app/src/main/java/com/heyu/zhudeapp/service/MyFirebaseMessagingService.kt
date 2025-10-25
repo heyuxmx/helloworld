@@ -12,7 +12,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.activity.MainActivity
-import com.heyu.zhudeapp.client.SupabaseClient.supabase
+import com.heyu.zhudeapp.di.SupabaseModule.supabase
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -115,7 +115,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val title = messageTitle ?: getString(R.string.app_name)
 
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.house)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
             .setContentText(messageBody)
             .setAutoCancel(true)

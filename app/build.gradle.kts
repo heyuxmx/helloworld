@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
+    id("kotlin-parcelize") // Add this line
     // Apply the Google Services plugin
     id("com.google.gms.google-services")
 }
