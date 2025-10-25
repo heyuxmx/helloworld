@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <uses-permission android:name="android.permission.INTERNET" />
 
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
     <application
         android:name=".MyApplication"
@@ -11,10 +13,13 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:requestLegacyExternalStorage="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.ZhudeApp">
-        <activity android:name=".activity.SplashActivity"
+        android:theme="@style/Theme.ZhudeApp"
+        tools:targetApi="q">
+        <activity
+            android:name=".activity.SplashActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -23,12 +28,15 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".activity.MainActivity"
-        android:exported="true"/>
-        <activity android:name=".activity.CreatePostActivity"
-            android:exported="false"/>
-        <activity android:name=".activity.ImageViewerActivity"
-            android:exported="false"/>
+        <activity
+            android:name=".activity.MainActivity"
+            android:exported="true" />
+        <activity
+            android:name=".activity.CreatePostActivity"
+            android:exported="false" />
+        <activity
+            android:name=".activity.ImageViewerActivity"
+            android:exported="false" />
 
 
     </application>

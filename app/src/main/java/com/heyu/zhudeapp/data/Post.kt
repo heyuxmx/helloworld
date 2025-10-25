@@ -2,10 +2,10 @@ package com.heyu.zhudeapp.data
 
 import android.annotation.SuppressLint
 import android.os.Parcelable
+import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 
 @SuppressLint("UnsafeOptInUsageError")
 @Parcelize
@@ -23,41 +23,23 @@ data class Post(
     val createdAt: String = "",
 
     var likes: Int = 0,
-    // This will be populated by a separate query, so it should be transient for Post serialization.
-    @Transient
+    // This will be populated by the join query, so it should NOT be transient.
+    @IgnoredOnParcel
     val comments: MutableList<Comment> = mutableListOf(),
 
-    @Transient
+    @kotlinx.serialization.Transient
+    @IgnoredOnParcel
     var isLiked: Boolean = false, // To track if the current user has liked the post
 
     // --- Fields for Optimistic UI ---
-    @Transient
+    @kotlinx.serialization.Transient
+    @IgnoredOnParcel
     val isUploading: Boolean = false,
-    @Transient
+    @kotlinx.serialization.Transient
+    @IgnoredOnParcel
     val uploadFailed: Boolean = false,
-    @Transient
+    @kotlinx.serialization.Transient
+    @IgnoredOnParcel
     val localImageUris: List<String> = emptyList()
 
-) : Parcelable
-
-@Parcelize
-@Serializable
-data class Comment(
-    // id can be null when creating a new comment, so it's nullable.
-    val id: Long? = null,
-
-    // Maps to the 'post_id' column in the database. Must be provided.
-    @SerialName("post_id")
-    val postId: Long,
-
-    // Maps to 'user_name' in DB, used by CommentAdapter.
-    @SerialName("user_name")
-    val userName: String,
-
-    // Maps to 'content' in DB, used by CommentAdapter as 'text'.
-    @SerialName("content")
-    val text: String,
-
-    @SerialName("created_at")
-    val createdAt: String = ""
 ) : Parcelable

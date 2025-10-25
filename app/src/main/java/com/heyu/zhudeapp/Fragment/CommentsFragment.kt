@@ -1,16 +1,20 @@
 package com.heyu.zhudeapp.Fragment
 
 import android.os.Bundle
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.heyu.zhudeapp.adapter.CommentAdapter
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
-import com.heyu.zhudeapp.adapter.CommentAdapter
 import com.heyu.zhudeapp.databinding.FragmentCommentsBinding
 import com.heyu.zhudeapp.network.SupabaseClient
 import io.github.jan.supabase.postgrest.from
@@ -29,7 +33,6 @@ class CommentsFragment : BottomSheetDialogFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            // The post object is now successfully passed here
             post = it.getParcelable("post")!!
         }
     }
@@ -45,14 +48,42 @@ class CommentsFragment : BottomSheetDialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setupRecyclerView()
-        fetchComments() // Fetch comments from Supabase when the view is created
+        fetchComments()
 
         binding.sendButton.setOnClickListener {
             val commentText = binding.commentInput.text.toString().trim()
             if (commentText.isNotEmpty()) {
-                postNewComment(commentText) // Post the new comment to Supabase
+                postNewComment(commentText)
             }
         }
+
+        val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean {
+                return true
+            }
+
+            override fun onLongPress(e: MotionEvent) {
+                val childView = binding.commentsRecyclerView.findChildViewUnder(e.x, e.y)
+                if (childView != null) {
+                    val position = binding.commentsRecyclerView.getChildAdapterPosition(childView)
+                    if (position != RecyclerView.NO_POSITION) {
+                        val comment = commentsList[position]
+                        showDeleteConfirmationDialog(comment)
+                    }
+                }
+            }
+        })
+
+        binding.commentsRecyclerView.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                // Let the gesture detector inspect the event.
+                // If it consumes the event, we intercept.
+                return gestureDetector.onTouchEvent(e)
+            }
+
+            override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
+            override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
+        })
     }
 
     private fun setupRecyclerView() {
@@ -74,9 +105,7 @@ class CommentsFragment : BottomSheetDialogFragment() {
                         order("created_at", Order.ASCENDING)
                     }.decodeList<Comment>()
 
-                commentsList.clear()
-                commentsList.addAll(result)
-                commentAdapter.notifyDataSetChanged()
+                commentAdapter.updateComments(result)
             } catch (e: Exception) {
                 Toast.makeText(context, "Failed to fetch comments: ${e.message}", Toast.LENGTH_SHORT).show()
             }
@@ -86,28 +115,55 @@ class CommentsFragment : BottomSheetDialogFragment() {
     private fun postNewComment(text: String) {
         lifecycleScope.launch {
             try {
-                // Here you should get the actual user's name, using a placeholder for now
-                val userName = "New User" // Replace with actual user name logic
-
                 val newComment = Comment(
                     postId = post.id,
-                    userName = userName,
-                    text = text
+                    content = text
                 )
 
-                // Insert the new comment and decode the result to get the ID and created_at
                 val result = SupabaseClient.client.from("comments")
-                    .insert(newComment) { select() } // Use select() to get the inserted row back
+                    .insert(newComment) { select() }
                     .decodeSingle<Comment>()
 
-                // Add to list and update UI
-                commentsList.add(result)
-                commentAdapter.notifyItemInserted(commentsList.size - 1)
+                commentAdapter.addComment(result)
                 binding.commentsRecyclerView.scrollToPosition(commentsList.size - 1)
-                binding.commentInput.text.clear() // Clear input field
+                binding.commentInput.text.clear()
 
             } catch (e: Exception) {
-                 Toast.makeText(context, "Failed to post comment: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Failed to post comment: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun showDeleteConfirmationDialog(comment: Comment) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("删除评论")
+            .setMessage("您确定要删除这条评论吗？")
+            .setPositiveButton("删除") { _, _ ->
+                deleteComment(comment)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun deleteComment(comment: Comment) {
+        lifecycleScope.launch {
+            try {
+                SupabaseClient.client.from("comments").delete {
+                    filter {
+                        eq("id", comment.id)
+                    }
+                }
+
+                val position = commentsList.indexOf(comment)
+                if (position != -1) {
+                    commentsList.removeAt(position)
+                    commentAdapter.notifyItemRemoved(position)
+                    commentAdapter.notifyItemRangeChanged(position, commentsList.size)
+                }
+
+                Toast.makeText(context, "评论已删除", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }

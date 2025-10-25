@@ -1,16 +1,28 @@
 package com.heyu.zhudeapp.Fragment
 
+import android.Manifest
+import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.bumptech.glide.Glide
 import com.heyu.zhudeapp.activity.CreatePostActivity
+import com.heyu.zhudeapp.adapter.OnImageSaveListener
 import com.heyu.zhudeapp.adapter.OnItemLongClickListener
 import com.heyu.zhudeapp.adapter.PostAdapter
 import com.heyu.zhudeapp.data.Post
@@ -18,10 +30,13 @@ import com.heyu.zhudeapp.databinding.FragmentSecondBinding
 import com.heyu.zhudeapp.viewmodel.MainViewModel
 import com.heyu.zhudeapp.viewmodel.PostViewModel
 import es.dmoral.toasty.Toasty
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import java.io.IOException
 
-class PostFragment : Fragment(), OnItemLongClickListener {
+class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener {
 
     private var _binding: FragmentSecondBinding? = null
     private val binding get() = _binding!!
@@ -30,6 +45,18 @@ class PostFragment : Fragment(), OnItemLongClickListener {
     private val mainViewModel: MainViewModel by activityViewModels()
 
     private lateinit var postAdapter: PostAdapter
+
+    private var imageUrlToSave: String? = null
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            imageUrlToSave?.let { saveImageToGallery(it) }
+        } else {
+            Toast.makeText(requireContext(), "保存图片需要存储权限", Toast.LENGTH_LONG).show()
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -48,7 +75,6 @@ class PostFragment : Fragment(), OnItemLongClickListener {
         setupFab()
         setupFragmentResultListener()
         setupDaysCounter()
-
         observeNavigation()
     }
 
@@ -99,17 +125,15 @@ class PostFragment : Fragment(), OnItemLongClickListener {
     }
 
     private fun setupRecyclerView() {
-        // Updated constructor for the new PostAdapter
         postAdapter = PostAdapter(
             posts = emptyList(),
             lifecycleScope = viewLifecycleOwner.lifecycleScope,
-            onItemLongClickListener = this // The fragment itself handles the long click
+            onItemLongClickListener = this,
+            onImageSaveListener = this
         )
         binding.postsRecyclerView.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = postAdapter
-            // **[ULTIMATE FIX]** Disable view recycling to work around a deep, persistent rendering bug.
-            // This is a last-resort, "nuclear option" to ensure every item view is created fresh.
             recycledViewPool.setMaxRecycledViews(0, 0)
         }
     }
@@ -138,6 +162,27 @@ class PostFragment : Fragment(), OnItemLongClickListener {
         dialog.show(childFragmentManager, "DeleteConfirmationDialog")
     }
 
+    override fun onSaveImage(imageUrl: String?) {
+        if (imageUrl == null) return
+        this.imageUrlToSave = imageUrl // Keep for the callback on old devices
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // On Android 10+, we don't need runtime permission to add to MediaStore.
+            saveImageToGallery(imageUrl)
+        } else {
+            // For older versions, we must check for and request the permission.
+            if (ContextCompat.checkSelfPermission(
+                    requireContext(),
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                saveImageToGallery(imageUrl)
+            } else {
+                requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+        }
+    }
+
     private fun deletePost(post: Post) {
         lifecycleScope.launch {
             try {
@@ -147,6 +192,74 @@ class PostFragment : Fragment(), OnItemLongClickListener {
                 Toasty.error(requireContext(), "删除失败: ${e.message}", Toasty.LENGTH_LONG).show()
             }
         }
+    }
+
+    private fun saveImageToGallery(imageUrl: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val context = requireContext()
+                val bitmap = Glide.with(context)
+                    .asBitmap()
+                    .load(imageUrl)
+                    .submit()
+                    .get()
+
+                val savedUri = saveBitmapToMediaStore(bitmap, "Image_${System.currentTimeMillis()}.jpg")
+
+                withContext(Dispatchers.Main) {
+                    if (savedUri != null) {
+                        Toast.makeText(context, "图片已保存至相册", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(requireContext(), "保存失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun saveBitmapToMediaStore(bitmap: Bitmap, displayName: String): Uri? {
+        val context = requireContext()
+        val imageCollection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        } else {
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        }
+
+        val contentValues = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+
+        val resolver = context.contentResolver
+        val uri = resolver.insert(imageCollection, contentValues)
+
+        uri?.let { savedUri ->
+            try {
+                resolver.openOutputStream(savedUri)?.use { outputStream ->
+                    if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)) {
+                        throw IOException("Failed to save bitmap.")
+                    }
+                } ?: throw IOException("Failed to get output stream.")
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentValues.clear()
+                    contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                    resolver.update(savedUri, contentValues, null, null)
+                }
+                return savedUri
+            } catch (e: Exception) {
+                resolver.delete(savedUri, null, null)
+                return null
+            }
+        }
+        return null
     }
 
     override fun onDestroyView() {

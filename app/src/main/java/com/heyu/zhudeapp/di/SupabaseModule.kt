@@ -13,6 +13,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.rpc
 import io.github.jan.supabase.storage.Storage
@@ -72,8 +73,7 @@ object SupabaseModule {
     suspend fun addComment(postId: Long, commentText: String): Comment {
         val newComment = Comment(
             postId = postId,
-            userName = "热心网友", // Hardcoded username as per the requirement
-            text = commentText
+            content = commentText
         )
 
         return supabase.postgrest[COMMENTS_TABLE].insert(newComment) {
@@ -87,7 +87,7 @@ object SupabaseModule {
      * @return 从新到旧排序的动态列表。
      */
     suspend fun getPosts(): List<Post> {
-        return supabase.postgrest[POST_TABLE].select {
+        return supabase.postgrest[POST_TABLE].select(columns = Columns.raw("*, comments(*)")) {
             order("created_at", Order.DESCENDING)
         }.decodeList<Post>()
     }
@@ -107,7 +107,7 @@ object SupabaseModule {
         )
 
         // 步骤 1: 插入数据并请求返回插入的记录
-        val result = supabase.postgrest[POST_TABLE].insert(newPost) {
+        val result = supabase.postgrest[POST_TABLE].insert<Post>(newPost) {
             select() // 关键：请求将插入的数据返回
         }.decodeList<Post>()
 

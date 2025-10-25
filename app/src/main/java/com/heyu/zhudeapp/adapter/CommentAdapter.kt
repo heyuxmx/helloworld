@@ -1,17 +1,29 @@
 package com.heyu.zhudeapp.adapter
 
-import android.annotation.SuppressLint
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.data.Comment
-import com.heyu.zhudeapp.databinding.ItemCommentBinding
 
-class CommentAdapter(
-    private val comments: MutableList<Comment>
-) : RecyclerView.Adapter<CommentAdapter.CommentViewHolder>() {
+class CommentAdapter(private var comments: MutableList<Comment>) :
+    RecyclerView.Adapter<CommentAdapter.CommentViewHolder>() {
 
-    @SuppressLint("NotifyDataSetChanged")
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CommentViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_comment, parent, false)
+        return CommentViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: CommentViewHolder, position: Int) {
+        val comment = comments[position]
+        holder.bind(comment)
+    }
+
+    override fun getItemCount(): Int = comments.size
+
     fun updateComments(newComments: List<Comment>) {
         comments.clear()
         comments.addAll(newComments)
@@ -23,21 +35,15 @@ class CommentAdapter(
         notifyItemInserted(comments.size - 1)
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CommentViewHolder {
-        val binding = ItemCommentBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return CommentViewHolder(binding)
-    }
+    inner class CommentViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val contentTextView: TextView = itemView.findViewById(R.id.commentText)
+        private val authorTextView: TextView = itemView.findViewById(R.id.commentUserName)
 
-    override fun onBindViewHolder(holder: CommentViewHolder, position: Int) {
-        holder.bind(comments[position])
-    }
-
-    override fun getItemCount(): Int = comments.size
-
-    class CommentViewHolder(private val binding: ItemCommentBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(comment: Comment) {
-            binding.commentUserName.text = "${comment.userName}:"
-            binding.commentText.text = comment.text
+            contentTextView.text = comment.content
+            // Assuming you have a way to get the author's name.
+            // If not, you might need to adjust your data model or query.
+            authorTextView.text = "匿名用户"
         }
     }
 }

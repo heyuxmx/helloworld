@@ -7,7 +7,10 @@
     android:paddingTop="4dp"
     android:paddingBottom="4dp"
     android:paddingStart="8dp"
-    android:paddingEnd="8dp">
+    android:paddingEnd="8dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:background="?attr/selectableItemBackground">
 
     <TextView
         android:id="@+id/commentUserName"
