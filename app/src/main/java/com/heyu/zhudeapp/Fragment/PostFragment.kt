@@ -21,10 +21,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.heyu.zhudeapp.activity.CreatePostActivity
+import com.heyu.zhudeapp.adapter.OnCommentLongClickListener
 import com.heyu.zhudeapp.adapter.OnImageSaveListener
 import com.heyu.zhudeapp.adapter.OnItemLongClickListener
 import com.heyu.zhudeapp.adapter.PostAdapter
+import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.databinding.FragmentSecondBinding
 import com.heyu.zhudeapp.viewmodel.MainViewModel
@@ -36,7 +39,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.IOException
 
-class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener {
+class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, OnCommentLongClickListener {
 
     private var _binding: FragmentSecondBinding? = null
     private val binding get() = _binding!!
@@ -129,7 +132,8 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener {
             posts = emptyList(),
             lifecycleScope = viewLifecycleOwner.lifecycleScope,
             onItemLongClickListener = this,
-            onImageSaveListener = this
+            onImageSaveListener = this,
+            onCommentLongClickListener = this
         )
         binding.postsRecyclerView.apply {
             layoutManager = LinearLayoutManager(context)
@@ -162,15 +166,27 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener {
         dialog.show(childFragmentManager, "DeleteConfirmationDialog")
     }
 
+    override fun onCommentLongClick(post: Post, comment: Comment) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("删除评论")
+            .setMessage("您确定要删除这条评论吗？")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("删除") { _, _ ->
+                deleteComment(comment)
+            }
+            .show()
+    }
+
     override fun onSaveImage(imageUrl: String?) {
-        if (imageUrl == null) return
-        this.imageUrlToSave = imageUrl // Keep for the callback on old devices
+        if (imageUrl == null) {
+            Toast.makeText(requireContext(), "无法保存图片，链接不存在", Toast.LENGTH_SHORT).show()
+            return
+        }
+        this.imageUrlToSave = imageUrl
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // On Android 10+, we don't need runtime permission to add to MediaStore.
             saveImageToGallery(imageUrl)
         } else {
-            // For older versions, we must check for and request the permission.
             if (ContextCompat.checkSelfPermission(
                     requireContext(),
                     Manifest.permission.WRITE_EXTERNAL_STORAGE
@@ -188,6 +204,17 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener {
             try {
                 viewModel.deletePost(post)
                 Toasty.success(requireContext(), "删除成功!", Toasty.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toasty.error(requireContext(), "删除失败: ${e.message}", Toasty.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun deleteComment(comment: Comment) {
+        lifecycleScope.launch {
+            try {
+                viewModel.deleteComment(comment)
+                Toasty.success(requireContext(), "评论已删除", Toasty.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toasty.error(requireContext(), "删除失败: ${e.message}", Toasty.LENGTH_LONG).show()
             }

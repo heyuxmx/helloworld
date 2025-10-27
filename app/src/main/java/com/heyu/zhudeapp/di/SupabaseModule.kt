@@ -152,6 +152,32 @@ object SupabaseModule {
     }
 
     /**
+     * Deletes a comment from the database and verifies the deletion.
+     * @param commentId The id of the comment to be deleted.
+     */
+    suspend fun deleteComment(commentId: Long) {
+        // Step 1: Attempt to delete the comment.
+        supabase.postgrest[COMMENTS_TABLE].delete {
+            filter {
+                eq("id", commentId)
+            }
+        }
+
+        // Step 2: Verify deletion by trying to fetch the comment we just deleted.
+        val result = supabase.postgrest[COMMENTS_TABLE].select {
+            filter {
+                eq("id", commentId)
+            }
+        }.decodeList<Comment>()
+
+        // Step 3: If the result is not empty, the comment was not deleted.
+        if (result.isNotEmpty()) {
+            throw IllegalStateException("Deletion failed for comment ID: $commentId. This is likely due to RLS policies. Please check the 'DELETE' policy on the 'comments' table in your Supabase dashboard.")
+        }
+    }
+
+
+    /**
      * 上传一张图片到帖子的存储桶中。
      *
      * @param imageBytes 图片的字节数组。

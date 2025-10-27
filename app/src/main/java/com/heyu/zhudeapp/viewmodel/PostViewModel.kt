@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.di.SupabaseModule
 import kotlinx.coroutines.launch
@@ -32,6 +33,11 @@ class PostViewModel : ViewModel() {
         // This will propagate the exception up to the calling coroutine scope in the Fragment
         SupabaseModule.deletePost(post)
         // After successful deletion, refresh the posts list.
+        fetchPosts()
+    }
+
+    suspend fun deleteComment(comment: Comment) {
+        SupabaseModule.deleteComment(comment.id)
         fetchPosts()
     }
 

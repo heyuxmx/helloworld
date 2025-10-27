@@ -23,7 +23,7 @@ class SplashActivity : AppCompatActivity() {
     }
 
     private fun countDown() {
-        val timer = object : CountDownTimer(2000, 1000) {
+        val timer = object : CountDownTimer(1500, 1000) {
             override fun onTick(millisUntilFinished: Long) {}
             override fun onFinish() {
                 //跳转到MainActivity
