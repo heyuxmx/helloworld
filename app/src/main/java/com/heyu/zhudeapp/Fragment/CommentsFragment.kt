@@ -16,7 +16,7 @@ import com.heyu.zhudeapp.adapter.CommentAdapter
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.databinding.FragmentCommentsBinding
-import com.heyu.zhudeapp.network.SupabaseClient
+import com.heyu.zhudeapp.di.SupabaseModule
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.launch
@@ -97,7 +97,7 @@ class CommentsFragment : BottomSheetDialogFragment() {
     private fun fetchComments() {
         lifecycleScope.launch {
             try {
-                val result = SupabaseClient.client.from("comments")
+                val result = SupabaseModule.supabase.from("comments")
                     .select {
                         filter {
                             eq("post_id", post.id)
@@ -120,7 +120,7 @@ class CommentsFragment : BottomSheetDialogFragment() {
                     content = text
                 )
 
-                val result = SupabaseClient.client.from("comments")
+                val result = SupabaseModule.supabase.from("comments")
                     .insert(newComment) { select() }
                     .decodeSingle<Comment>()
 
@@ -148,7 +148,7 @@ class CommentsFragment : BottomSheetDialogFragment() {
     private fun deleteComment(comment: Comment) {
         lifecycleScope.launch {
             try {
-                SupabaseClient.client.from("comments").delete {
+                SupabaseModule.supabase.from("comments").delete {
                     filter {
                         eq("id", comment.id)
                     }

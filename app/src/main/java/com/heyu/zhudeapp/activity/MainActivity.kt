@@ -10,6 +10,7 @@ import androidx.fragment.app.Fragment
 import com.heyu.zhudeapp.Fragment.DatecountFragment
 import com.heyu.zhudeapp.Fragment.PostFragment
 import com.heyu.zhudeapp.Fragment.WelcomeFragment
+import com.heyu.zhudeapp.Fragment.MineFragment
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.databinding.ActivityMainBinding
 import com.heyu.zhudeapp.service.MyFirebaseMessagingService
@@ -25,7 +26,7 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         binding= ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        fragmentlist = listOf(WelcomeFragment(), PostFragment(), DatecountFragment())
+        fragmentlist = listOf(WelcomeFragment(), PostFragment(), DatecountFragment(), MineFragment())
         // Make sure to show the first fragment initially if not already handled
         if (savedInstanceState == null) {
             showFragment(fragmentlist[0])
@@ -43,6 +44,10 @@ class MainActivity : AppCompatActivity() {
                 }
                 R.id.tab_third -> {
                     showFragment(fragmentlist[2])
+                    true
+                }
+                R.id.tab_fourth -> {
+                    showFragment(fragmentlist[3])
                     true
                 }
                 else -> {

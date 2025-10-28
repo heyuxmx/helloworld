@@ -39,10 +39,16 @@ android {
     productFlavors {
         create("xiaogao") {
             dimension = "version"
+            buildConfigField("String", "USERNAME", "\"小高宝宝\"")
+            buildConfigField("String", "AVATAR_IDENTIFIER", "\"ic_launcher\"")
+            buildConfigField("String", "USER_ID", "\"user_xiaogao\"")
         }
         
         create("xiaoxu") {
             dimension = "version"
+            buildConfigField("String", "USERNAME", "\"小徐爸爸\"")
+            buildConfigField("String", "AVATAR_IDENTIFIER", "\"ic_launcher\"")
+            buildConfigField("String", "USER_ID", "\"user_xiaoxu\"")
         }
     }
 

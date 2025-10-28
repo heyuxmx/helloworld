@@ -9,4 +9,7 @@
     <item android:id="@+id/tab_third"
         android:title="嘻嘻"
         android:icon="@drawable/star"/>
+    <item android:id="@+id/tab_fourth"
+        android:title="我的"
+        android:icon="@drawable/mine"/>
 </menu>
