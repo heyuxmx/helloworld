@@ -82,9 +82,14 @@ object SupabaseModule {
             userId = userId
         )
 
-        return supabase.postgrest[COMMENTS_TABLE].insert(newComment) {
+        val result = supabase.postgrest[COMMENTS_TABLE].insert(newComment) {
             select()
-        }.decodeSingle<Comment>()
+        }.decodeList<Comment>()
+
+        if (result.isEmpty()) {
+            throw IllegalStateException("Comment creation failed for post ID: $postId. This is likely due to RLS policies.")
+        }
+        return result.first()
     }
 
 
@@ -206,9 +211,27 @@ object SupabaseModule {
                 filter {
                     eq("id", userId)
                 }
-            }.decodeSingleOrNull<UserProfile>()
+            }.decodeList<UserProfile>().firstOrNull()
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching user by ID: $userId", e)
+            null
+        }
+    }
+
+    /**
+     * 根据用户ID获取单个用户的详细信息。 (This is the function PostAdapter is calling)
+     * @param userId 要获取的用户的ID。
+     * @return 如果找到，则返回UserProfile对象；否则返回null。
+     */
+    suspend fun getUserProfile(userId: String): UserProfile? {
+        return try {
+            supabase.postgrest[PROFILES_TABLE].select {
+                filter {
+                    eq("id", userId)
+                }
+            }.decodeList<UserProfile>().firstOrNull()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching user profile by ID: $userId", e)
             null
         }
     }

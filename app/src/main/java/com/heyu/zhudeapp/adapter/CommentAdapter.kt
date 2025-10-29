@@ -8,7 +8,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.data.Comment
 
-class CommentAdapter(private var comments: MutableList<Comment>) :
+class CommentAdapter(
+    private var comments: MutableList<Comment>,
+    private val onCommentLongClickListener: (Comment) -> Unit
+) :
     RecyclerView.Adapter<CommentAdapter.CommentViewHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CommentViewHolder {
@@ -40,10 +43,13 @@ class CommentAdapter(private var comments: MutableList<Comment>) :
         private val authorTextView: TextView = itemView.findViewById(R.id.commentUserName)
 
         fun bind(comment: Comment) {
-            // Set the author's name with a colon, or "Anonymous:" if not available.
             authorTextView.text = "${comment.author?.username ?: "匿名用户"}："
-            // Set the comment content
             contentTextView.text = comment.content
+
+            itemView.setOnLongClickListener {
+                onCommentLongClickListener(comment)
+                true
+            }
         }
     }
 }

@@ -75,6 +75,7 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, O
         viewModel = ViewModelProvider(this).get(PostViewModel::class.java)
 
         setupRecyclerView()
+        setupSwipeToRefresh()
         observeViewModel()
         setupFab()
         setupFragmentResultListener()
@@ -145,12 +146,24 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, O
         }
     }
 
+    private fun setupSwipeToRefresh() {
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            loadPosts()
+        }
+    }
+
     private fun observeViewModel() {
         viewModel.posts.observe(viewLifecycleOwner) { posts ->
             postAdapter.updatePosts(posts)
+            if (_binding != null) {
+                binding.swipeRefreshLayout.isRefreshing = false
+            }
         }
         viewModel.error.observe(viewLifecycleOwner) { error ->
             Toasty.error(requireContext(), error, Toasty.LENGTH_LONG).show()
+            if (_binding != null) {
+                binding.swipeRefreshLayout.isRefreshing = false
+            }
         }
     }
 

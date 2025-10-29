@@ -22,6 +22,7 @@ import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.activity.ImageViewerActivity
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
+import com.heyu.zhudeapp.data.UserProfile
 import com.heyu.zhudeapp.di.SupabaseModule
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -105,11 +106,27 @@ class PostAdapter(
 
             lifecycleScope.launch {
                 try {
-                    // Use the currentUserId passed into the ViewHolder
-                    val newComment = SupabaseModule.addComment(post.id, commentText, currentUserId)
+                    // First, fetch the current user's profile using the new helper function
+                    val currentUserProfile = SupabaseModule.getUserProfile(currentUserId)
+
+                    if (currentUserProfile == null) {
+                        // If the profile can't be fetched, show an error and don't proceed
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(itemView.context, "无法获取用户信息，请稍后重试", Toast.LENGTH_SHORT).show()
+                        }
+                        return@launch
+                    }
+
+                    // Proceed to add the comment to the database
+                    val newCommentIncomplete = SupabaseModule.addComment(post.id, commentText, currentUserId)
+
+                    // The returned comment object might not have the author's profile.
+                    // We create a complete object by attaching the profile we just fetched.
+                    val newCommentComplete = newCommentIncomplete.copy(author = currentUserProfile)
+
+                    // Update the UI on the main thread with the complete comment object
                     withContext(Dispatchers.Main) {
-                        (post.comments as? MutableList)?.add(newComment)
-                        commentsAdapter.addComment(newComment)
+                        commentsAdapter.addComment(newCommentComplete)
                         commentCountText.text = commentsAdapter.itemCount.toString()
                         commentInput.text.clear()
                         commentsRecyclerView.smoothScrollToPosition(commentsAdapter.itemCount - 1)
@@ -150,7 +167,10 @@ class PostAdapter(
 
             // Setup Comments Adapter
             commentsAdapter = CommentAdapter(
-                comments = post.comments.toMutableList()
+                comments = post.comments.toMutableList(),
+                onCommentLongClickListener = {
+                    comment -> commentLongClickListener.onCommentLongClick(post,comment)
+                }
             )
             commentsRecyclerView.apply {
                 layoutManager = LinearLayoutManager(itemView.context)
@@ -238,58 +258,60 @@ private fun formatTimestamp(timestamp: String?): String {
 
     fun parseTimestamp(ts: String): ParseResult? {
         val zone = ZoneId.of("Asia/Shanghai")
-        val normalizedTs = ts.replace(" ", "T")
+        // Try parsing with optional milliseconds and timezone
+        val formatters = listOf(
+            DateTimeFormatter.ISO_OFFSET_DATE_TIME to true,
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX") to true,
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS") to true,
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssX") to true,
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss") to true,
+            DateTimeFormatter.ISO_LOCAL_DATE_TIME to true,
+            DateTimeFormatter.ISO_LOCAL_DATE to false
+        )
 
-        // 1. Try common ISO formats first
+        for ((formatter, hasTime) in formatters) {
+            try {
+                return if (hasTime) {
+                    val zdt = ZonedDateTime.parse(ts, formatter.withZone(zone))
+                    ParseResult(zdt, true)
+                } else {
+                    val ld = LocalDate.parse(ts, formatter)
+                    ParseResult(ld.atStartOfDay(zone), false)
+                }
+            } catch (e: DateTimeParseException) {
+                // Continue to next formatter
+            }
+        }
+        // Fallback for timestamps that might not have a 'T'
         try {
-            val zdt = ZonedDateTime.parse(normalizedTs, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-            return ParseResult(zdt.withZoneSameInstant(zone), true)
-        } catch (e: DateTimeParseException) { /* Continue */ }
-
-        try {
-            val ldt = LocalDateTime.parse(normalizedTs)
+            val ldt = LocalDateTime.parse(ts.replace(" ", "T"))
             return ParseResult(ldt.atZone(zone), true)
-        } catch (e: DateTimeParseException) { /* Continue */ }
-        
-        // 2. Try custom format from Supabase/Postgres
-        try {
-            val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss[.SSSSSS]")
-            val ldt = LocalDateTime.parse(normalizedTs, formatter)
-            return ParseResult(ldt.atZone(zone), true)
-        } catch (e: DateTimeParseException) { /* Continue */ }
-
-
-        // 3. Finally, try as just a date
-        try {
-            val ld = LocalDate.parse(normalizedTs)
-            return ParseResult(ld.atStartOfDay(zone), false)
-        } catch (e: DateTimeParseException) { /* Continue */ }
-
-        return null // All parsing failed
+        } catch (e: DateTimeParseException) {
+            // Final fallback failed
+        }
+        return null
     }
 
-    val parseResult = parseTimestamp(timestamp) ?: return timestamp
 
-    val zonedDateTime = parseResult.zonedDateTime
-    val shouldShowTime = parseResult.hasTimeInformation
-    val now = ZonedDateTime.now(zonedDateTime.zone)
-    val postDate = zonedDateTime.toLocalDate()
-    val nowDate = now.toLocalDate()
+    val now = ZonedDateTime.now(ZoneId.of("Asia/Shanghai"))
+    val parsedResult = parseTimestamp(timestamp) ?: return timestamp
 
-    val daysAgo = ChronoUnit.DAYS.between(postDate, nowDate)
-    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    val postTime = parsedResult.zonedDateTime
+    if (!parsedResult.hasTimeInformation) {
+         return postTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+    }
 
-    return when (daysAgo) {
-        0L -> if (shouldShowTime) timeFormatter.format(zonedDateTime) else "今天"
-        1L -> if (shouldShowTime) "昨天 ${timeFormatter.format(zonedDateTime)}" else "昨天"
-        in 2..3 -> if (shouldShowTime) "${daysAgo}天前 ${timeFormatter.format(zonedDateTime)}" else "${daysAgo}天前"
-        else -> {
-            val pattern = if (postDate.year == nowDate.year) {
-                if (shouldShowTime) "MM-dd HH:mm" else "MM-dd"
-            } else {
-                if (shouldShowTime) "yyyy-MM-dd HH:mm" else "yyyy-MM-dd"
-            }
-            DateTimeFormatter.ofPattern(pattern).format(zonedDateTime)
-        }
+
+    val minutesDiff = ChronoUnit.MINUTES.between(postTime, now)
+    val hoursDiff = ChronoUnit.HOURS.between(postTime, now)
+    val daysDiff = ChronoUnit.DAYS.between(postTime.toLocalDate(), now.toLocalDate())
+
+    return when {
+        minutesDiff < 1 -> "刚刚"
+        minutesDiff < 60 -> "${minutesDiff}分钟前"
+        hoursDiff < 24 && now.dayOfMonth == postTime.dayOfMonth -> "${hoursDiff}小时前"
+        daysDiff == 1L -> "昨天 " + postTime.format(DateTimeFormatter.ofPattern("HH:mm"))
+        now.year == postTime.year -> postTime.format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))
+        else -> postTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
     }
 }

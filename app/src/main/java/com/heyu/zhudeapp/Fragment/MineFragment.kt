@@ -41,17 +41,10 @@ class MineFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Hide the switch user button as it's no longer needed
-        binding.switchUserButton.visibility = View.GONE
-
         loadUserProfileFromServer()
 
         binding.avatarImageView.setOnClickListener {
-            if (binding.usernameEditText.isEnabled) {
-                openImagePicker()
-            } else {
-                Toasty.info(requireContext(), "请先点击铅笔图标进入编辑模式", Toasty.LENGTH_SHORT).show()
-            }
+            openImagePicker()
         }
 
         binding.editUsernameButton.setOnClickListener {
@@ -95,6 +88,7 @@ class MineFragment : Fragment() {
                         .load(userProfile.avatarUrl)
                         .placeholder(R.drawable.ic_placeholder)
                         .error(R.drawable.ic_placeholder_error)
+                        .circleCrop()
                         .into(binding.avatarImageView)
                 } else {
                     Toasty.error(requireContext(), "加载用户信息失败", Toasty.LENGTH_LONG).show()
@@ -115,7 +109,12 @@ class MineFragment : Fragment() {
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let {
                 selectedImageUri = it
-                binding.avatarImageView.setImageURI(it)
+                Glide.with(this@MineFragment)
+                    .load(it)
+                    .circleCrop()
+                    .into(binding.avatarImageView)
+                // After picking an image, automatically enter edit mode
+                setEditMode(true)
             }
         }
     }
