@@ -13,6 +13,7 @@ import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.adapter.SelectedImagesAdapter
 import com.heyu.zhudeapp.databinding.ActivityCreatePostBinding
 import com.heyu.zhudeapp.di.SupabaseModule
+import com.heyu.zhudeapp.di.UserManager
 import es.dmoral.toasty.Toasty
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -87,11 +88,13 @@ class CreatePostActivity : AppCompatActivity() {
             return
         }
 
+        val userId = UserManager.getCurrentUserId()
+
         lifecycleScope.launch {
             renderState(UiState.Loading)
             try {
                 val imageUrls = uploadImages()
-                SupabaseModule.createPost(content, imageUrls)
+                SupabaseModule.createPost(content, imageUrls, userId)
                 renderState(UiState.Success)
             } catch (e: Exception) {
                 renderState(UiState.Error(e.localizedMessage ?: getString(R.string.unknown_error)))

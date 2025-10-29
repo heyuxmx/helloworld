@@ -6,6 +6,7 @@ import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @SuppressLint("UnsafeOptInUsageError")
 @Parcelize
@@ -13,6 +14,8 @@ import kotlinx.serialization.Serializable
 data class Post(
     // Fields sent when creating a new post.
     val content: String,
+    @SerialName("user_id")
+    val userId: String,
     @SerialName("image_urls")
     val imageUrls: List<String> = emptyList(),
 
@@ -26,6 +29,12 @@ data class Post(
     // This will be populated by the join query, so it should NOT be transient.
     @IgnoredOnParcel
     val comments: MutableList<Comment> = mutableListOf(),
+
+    // This field will be populated by a join query with the 'users' table.
+    // It's transient because it's not a direct column in the 'posts' table.
+    @Transient
+    @IgnoredOnParcel
+    val author: UserProfile? = null, // To hold the author's profile data
 
     @kotlinx.serialization.Transient
     @IgnoredOnParcel

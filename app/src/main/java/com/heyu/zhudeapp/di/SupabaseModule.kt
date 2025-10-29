@@ -9,6 +9,7 @@ import android.net.Uri
 import android.util.Log
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
+import com.heyu.zhudeapp.data.UserProfile
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.gotrue.Auth
@@ -31,6 +32,7 @@ object SupabaseModule {
 
     private const val POST_TABLE = "posts"
     private const val COMMENTS_TABLE = "comments"
+    private const val PROFILES_TABLE = "users"
     private const val POST_IMAGES_BUCKET = "post-images"
     private const val TAG = "SupabaseModule"
 
@@ -70,12 +72,14 @@ object SupabaseModule {
      * 为指定的帖子添加一条新的评论。
      * @param postId 评论所属的帖子的ID。
      * @param commentText 评论的文本内容。
+     * @param userId 评论作者的用户ID。
      * @return 创建成功并从数据库返回的Comment对象。
      */
-    suspend fun addComment(postId: Long, commentText: String): Comment {
+    suspend fun addComment(postId: Long, commentText: String, userId: String): Comment {
         val newComment = Comment(
             postId = postId,
-            content = commentText
+            content = commentText,
+            userId = userId
         )
 
         return supabase.postgrest[COMMENTS_TABLE].insert(newComment) {
@@ -86,12 +90,69 @@ object SupabaseModule {
 
     /**
      * 从数据库获取所有动态的列表，并严格按照创建时间降序排列。
-     * @return 从新到旧排序的动态列表。
+     * This version manually fetches posts, authors, and comments to bypass potential issues
+     * with Supabase's automatic relational queries.
+     * @return 从新到旧排序的动态列表，包含作者和评论信息。
      */
     suspend fun getPosts(): List<Post> {
-        return supabase.postgrest[POST_TABLE].select(columns = Columns.raw("*, comments(*)")) {
+        // Step 1: Fetch all posts without any joins.
+        val postsWithoutAuthors = supabase.postgrest[POST_TABLE].select {
             order("created_at", Order.DESCENDING)
         }.decodeList<Post>()
+
+        if (postsWithoutAuthors.isEmpty()) {
+            return emptyList()
+        }
+
+        // Step 2: Collect all unique author IDs from the posts.
+        val postAuthorIds = postsWithoutAuthors.map { it.userId }.distinct()
+
+        // Step 3: Fetch all the required authors (users) for the posts.
+        val postAuthors = supabase.postgrest[PROFILES_TABLE].select {
+            filter {
+                isIn("id", postAuthorIds)
+            }
+        }.decodeList<UserProfile>()
+        val postAuthorMap = postAuthors.associateBy { it.id }
+
+        // Step 4: Fetch all comments for the retrieved posts.
+        val postIds = postsWithoutAuthors.map { it.id }
+        val allComments = supabase.postgrest[COMMENTS_TABLE].select {
+            filter {
+                isIn("post_id", postIds)
+            }
+        }.decodeList<Comment>()
+
+        // Step 5: Fetch all authors for the comments if comments exist.
+        if (allComments.isNotEmpty()) {
+            val commentAuthorIds = allComments.map { it.userId }.distinct()
+            val commentAuthors = supabase.postgrest[PROFILES_TABLE].select {
+                filter {
+                    isIn("id", commentAuthorIds)
+                }
+            }.decodeList<UserProfile>()
+            val commentAuthorMap = commentAuthors.associateBy { it.id }
+
+            // Step 6: Manually 'join' comments with their authors.
+            val commentsWithAuthors = allComments.map { it.copy(author = commentAuthorMap[it.userId]) }
+            val commentsGroupedByPost = commentsWithAuthors.groupBy { it.postId }
+
+            // Step 7: Manually 'join' posts with their authors and grouped comments.
+            return postsWithoutAuthors.map { post ->
+                post.copy(
+                    author = postAuthorMap[post.userId],
+                    comments = commentsGroupedByPost[post.id]?.toMutableList() ?: mutableListOf()
+                )
+            }
+        } else {
+            // No comments found, just join posts with their authors.
+            return postsWithoutAuthors.map { post ->
+                post.copy(
+                    author = postAuthorMap[post.userId],
+                    comments = mutableListOf() // Ensure comments list is not null
+                )
+            }
+        }
     }
 
     /**
@@ -99,13 +160,14 @@ object SupabaseModule {
      * 如果插入失败（通常因为RLS策略），会抛出异常。
      * @param content 动态的文本内容。
      * @param imageUrls 可选的图片URL列表。
+     * @param userId 动态作者的用户ID。
      * @return 创建成功并从数据库返回的Post对象。
      */
-    suspend fun createPost(content: String, imageUrls: List<String> = emptyList()): Post {
+    suspend fun createPost(content: String, imageUrls: List<String> = emptyList(), userId: String): Post {
         val newPost = Post(
             content = content,
-            imageUrls = imageUrls
-            // 备注: userId, username 等字段未来可以和用户认证流程结合
+            imageUrls = imageUrls,
+            userId = userId
         )
 
         // 步骤 1: 插入数据并请求返回插入的记录
@@ -120,6 +182,60 @@ object SupabaseModule {
         }
 
         // 步骤 4: 返回创建成功的Post对象
+        return result.first()
+    }
+    
+    /**
+     * 获取所有用户的列表，并按照创建时间降序排列。
+     * @return 从新到旧排序的用户列表。
+     */
+    suspend fun getUsers(): List<UserProfile> {
+        return supabase.postgrest[PROFILES_TABLE].select {
+            order("created_at", Order.DESCENDING)
+        }.decodeList<UserProfile>()
+    }
+
+    /**
+     * 根据用户ID获取单个用户的详细信息。
+     * @param userId 要获取的用户的ID。
+     * @return 如果找到，则返回UserProfile对象；否则返回null。
+     */
+    suspend fun getUserById(userId: String): UserProfile? {
+        return try {
+            supabase.postgrest[PROFILES_TABLE].select {
+                filter {
+                    eq("id", userId)
+                }
+            }.decodeSingleOrNull<UserProfile>()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching user by ID: $userId", e)
+            null
+        }
+    }
+
+    /**
+     * 更新指定用户ID的个人资料。
+     * @param userId 要更新的用户的ID。
+     * @param newUsername 新的用户名。
+     * @param newAvatarUrl 新的头像URL（如果为null则不更新）。
+     * @return 更新成功后的UserProfile对象。
+     */
+    suspend fun updateUserProfile(userId: String, newUsername: String, newAvatarUrl: String?): UserProfile {
+        val result = supabase.postgrest[PROFILES_TABLE].update(
+            {
+                set("username", newUsername)
+                newAvatarUrl?.let { set("avatar_url", it) }
+            }
+        ) {
+            filter {
+                eq("id", userId)
+            }
+            select()
+        }.decodeList<UserProfile>()
+
+        if (result.isEmpty()) {
+            throw IllegalStateException("User profile update failed for user ID: $userId. This is likely due to RLS policies. Please check the 'UPDATE' policy on the 'users' table.")
+        }
         return result.first()
     }
 
@@ -244,40 +360,40 @@ object SupabaseModule {
                 matrix.postRotate(-90f)
                 matrix.preScale(-1.0f, 1.0f)
             }
+            else -> {
+                // 不需要旋转
+            }
         }
 
-        // 对于旋转90或270度的图片，其宽高在计算缩放比例时需要交换
-        if (orientation == ExifInterface.ORIENTATION_ROTATE_90 || orientation == ExifInterface.ORIENTATION_ROTATE_270 || orientation == ExifInterface.ORIENTATION_TRANSPOSE || orientation == ExifInterface.ORIENTATION_TRANSVERSE) {
+        if (orientation == ExifInterface.ORIENTATION_TRANSPOSE || orientation == ExifInterface.ORIENTATION_TRANSVERSE || orientation == ExifInterface.ORIENTATION_ROTATE_90 || orientation == ExifInterface.ORIENTATION_ROTATE_270) {
+            // 如果旋转了90或270度，宽高需要互换
             val temp = srcWidth
             srcWidth = srcHeight
             srcHeight = temp
         }
 
         // --- 计算缩放比例 ---
-        var scale = 1.0f
-        if (srcWidth > maxDimension || srcHeight > maxDimension) {
-            scale = if (srcWidth > srcHeight) {
-                maxDimension / srcWidth
+        var inSampleSize = 1f
+        if (srcHeight > maxDimension || srcWidth > maxDimension) {
+            inSampleSize = if (srcWidth > srcHeight) {
+                srcWidth / maxDimension
             } else {
-                maxDimension / srcHeight
+                srcHeight / maxDimension
             }
         }
-        matrix.postScale(scale, scale)
 
-        // --- 解码、应用变换并压缩 ---
-        val originalBitmap = context.contentResolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it)
-        } ?: return ByteArray(0)
+        // --- 使用Matrix进行缩放和旋转 ---
+        matrix.postScale(1/inSampleSize, 1/inSampleSize)
 
-        // 使用矩阵一次性完成旋转和缩放
-        val transformedBitmap = Bitmap.createBitmap(originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true)
-        if (transformedBitmap != originalBitmap) {
-            originalBitmap.recycle()
+        val scaledBitmap = context.contentResolver.openInputStream(uri)?.use {
+            val sourceBitmap = BitmapFactory.decodeStream(it)
+            Bitmap.createBitmap(sourceBitmap, 0, 0, sourceBitmap.width, sourceBitmap.height, matrix, true)
         }
 
+        // --- 压缩为JPEG ---
         val outputStream = ByteArrayOutputStream()
-        transformedBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
-        transformedBitmap.recycle()
+        scaledBitmap?.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+        scaledBitmap?.recycle() // 及时回收Bitmap
 
         return outputStream.toByteArray()
     }

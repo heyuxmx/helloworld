@@ -30,6 +30,7 @@ import com.heyu.zhudeapp.adapter.PostAdapter
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.databinding.FragmentSecondBinding
+import com.heyu.zhudeapp.di.UserManager
 import com.heyu.zhudeapp.viewmodel.MainViewModel
 import com.heyu.zhudeapp.viewmodel.PostViewModel
 import es.dmoral.toasty.Toasty
@@ -128,9 +129,11 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, O
     }
 
     private fun setupRecyclerView() {
+        val currentUserId = UserManager.getCurrentUserId()
         postAdapter = PostAdapter(
             posts = emptyList(),
             lifecycleScope = viewLifecycleOwner.lifecycleScope,
+            currentUserId = currentUserId,
             onItemLongClickListener = this,
             onImageSaveListener = this,
             onCommentLongClickListener = this

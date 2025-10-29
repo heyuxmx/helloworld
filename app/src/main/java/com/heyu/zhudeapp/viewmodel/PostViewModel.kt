@@ -41,10 +41,10 @@ class PostViewModel : ViewModel() {
         fetchPosts()
     }
 
-    fun createTextPost(content: String) {
+    fun createTextPost(content: String, userId: String) {
         viewModelScope.launch {
             try {
-                SupabaseModule.createPost(content, emptyList())
+                SupabaseModule.createPost(content, emptyList(), userId)
                 fetchPosts()
             } catch (e: Exception) {
                 _error.postValue("创建动态失败: ${e.message}")
@@ -52,15 +52,26 @@ class PostViewModel : ViewModel() {
         }
     }
 
-    fun createPostWithImage(content: String, imageBytes: ByteArray, fileExtension: String) {
+    fun createPostWithImage(content: String, imageBytes: ByteArray, fileExtension: String, userId: String) {
         viewModelScope.launch {
             try {
                 val fileName = "${UUID.randomUUID()}.$fileExtension"
                 val imageUrl = SupabaseModule.uploadPostImage(imageBytes, fileName)
-                SupabaseModule.createPost(content, listOf(imageUrl))
+                SupabaseModule.createPost(content, listOf(imageUrl), userId)
                 fetchPosts()
             } catch (e: Exception) {
                 _error.postValue("创建动态失败: ${e.message}")
+            }
+        }
+    }
+
+    fun addComment(postId: Long, commentText: String, userId: String) {
+        viewModelScope.launch {
+            try {
+                SupabaseModule.addComment(postId, commentText, userId)
+                fetchPosts() // Refresh posts to show the new comment
+            } catch (e: Exception) {
+                _error.postValue("添加评论失败: ${e.message}")
             }
         }
     }

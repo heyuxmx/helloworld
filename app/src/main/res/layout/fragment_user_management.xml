@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="16dp"
+    tools:context=".Fragment.UserManagementFragment">
+
+    <!-- ImageView for the user's avatar -->
+    <ImageView
+        android:id="@+id/userAvatarImage"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:contentDescription="User Avatar"
+        tools:src="@tools:sample/avatars" />
+
+    <!-- TextView for the user's name -->
+    <TextView
+        android:id="@+id/userNameText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        tools:text="User Name" />
+
+</LinearLayout>

@@ -40,10 +40,10 @@ class CommentAdapter(private var comments: MutableList<Comment>) :
         private val authorTextView: TextView = itemView.findViewById(R.id.commentUserName)
 
         fun bind(comment: Comment) {
+            // Set the author's name with a colon, or "Anonymous:" if not available.
+            authorTextView.text = "${comment.author?.username ?: "匿名用户"}："
+            // Set the comment content
             contentTextView.text = comment.content
-            // Assuming you have a way to get the author's name.
-            // If not, you might need to adjust your data model or query.
-            authorTextView.text = "匿名用户"
         }
     }
 }

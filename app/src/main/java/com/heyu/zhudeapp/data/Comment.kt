@@ -11,10 +11,14 @@ data class Comment(
     val id: Long = 0,
     @SerialName("post_id")
     val postId: Long,
+    @SerialName("user_id")
+    val userId: String,
     val content: String,
     @SerialName("created_at")
     val createdAt: String? = null,
-    // You might want to add user information here in the future
-    // @SerialName("user_id")
-    // val userId: String? = null
+    
+    // This field will be populated by a join query with the 'users' table.
+    // It's transient because it's not a direct column in the 'comments' table.
+    @Transient
+    val author: UserProfile? = null
 )

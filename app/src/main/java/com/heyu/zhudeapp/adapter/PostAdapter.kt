@@ -11,11 +11,13 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.activity.ImageViewerActivity
 import com.heyu.zhudeapp.data.Comment
@@ -46,6 +48,7 @@ interface OnCommentLongClickListener {
 class PostAdapter(
     private var posts: List<Post>,
     private val lifecycleScope: CoroutineScope,
+    private val currentUserId: String, // The ID of the currently logged-in user
     private val onItemLongClickListener: OnItemLongClickListener, // Existing listener for post deletion
     private val onImageSaveListener: OnImageSaveListener, // Listener for image saving
     private val onCommentLongClickListener: OnCommentLongClickListener // Listener for comment deletion
@@ -61,7 +64,8 @@ class PostAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.list_item_post, parent, false)
-        return PostViewHolder(view, lifecycleScope, likedPostIds)
+        // Pass the currentUserId to the ViewHolder
+        return PostViewHolder(view, lifecycleScope, likedPostIds, currentUserId)
     }
 
     override fun onBindViewHolder(holder: PostViewHolder, position: Int) {
@@ -75,9 +79,11 @@ class PostAdapter(
     class PostViewHolder(
         itemView: View,
         private val lifecycleScope: CoroutineScope,
-        private val likedPostIds: MutableSet<Long>
+        private val likedPostIds: MutableSet<Long>,
+        private val currentUserId: String // Receive the current user's ID
     ) : RecyclerView.ViewHolder(itemView) {
-
+        private val authorAvatar: ImageView = itemView.findViewById(R.id.author_avatar_image)
+        private val authorUsername: TextView = itemView.findViewById(R.id.author_username_text)
         private val postContentText: TextView = itemView.findViewById(R.id.post_content_text)
         private val postTimestampText: TextView = itemView.findViewById(R.id.post_timestamp_text)
         private val imagesRecyclerView: RecyclerView = itemView.findViewById(R.id.images_recycler_view)
@@ -88,7 +94,7 @@ class PostAdapter(
         private val sendCommentButton: ImageButton = itemView.findViewById(R.id.send_comment_button)
         private val commentsRecyclerView: RecyclerView = itemView.findViewById(R.id.comments_recycler_view)
 
-        private lateinit var commentsAdapter: CommentsAdapter
+        private lateinit var commentsAdapter: CommentAdapter
         private fun sendCommentAction(post: Post) {
             val commentText = commentInput.text.toString().trim()
             if (commentText.isEmpty()) {
@@ -99,7 +105,8 @@ class PostAdapter(
 
             lifecycleScope.launch {
                 try {
-                    val newComment = SupabaseModule.addComment(post.id, commentText)
+                    // Use the currentUserId passed into the ViewHolder
+                    val newComment = SupabaseModule.addComment(post.id, commentText, currentUserId)
                     withContext(Dispatchers.Main) {
                         (post.comments as? MutableList)?.add(newComment)
                         commentsAdapter.addComment(newComment)
@@ -127,16 +134,23 @@ class PostAdapter(
             imageSaveListener: OnImageSaveListener, // New listener
             commentLongClickListener: OnCommentLongClickListener // Listener for comments
         ) {
+            // Bind author information
+            authorUsername.text = post.author?.username ?: "匿名用户"
+            Glide.with(itemView.context)
+                .load(post.author?.avatarUrl)
+                .placeholder(R.drawable.hollowlike) // Using an existing drawable as a temporary placeholder
+                .error(R.drawable.hollowlike) // Using an existing drawable as a temporary error fallback
+                .circleCrop()
+                .into(authorAvatar)
+
             postContentText.text = post.content
             postTimestampText.text = formatTimestamp(post.createdAt)
             likeCountText.text = post.likes.toString()
             commentCountText.text = post.comments.size.toString()
 
             // Setup Comments Adapter
-            commentsAdapter = CommentsAdapter(
-                mutableComments = post.comments.toMutableList(),
-                post = post,
-                onCommentLongClickListener = commentLongClickListener
+            commentsAdapter = CommentAdapter(
+                comments = post.comments.toMutableList()
             )
             commentsRecyclerView.apply {
                 layoutManager = LinearLayoutManager(itemView.context)

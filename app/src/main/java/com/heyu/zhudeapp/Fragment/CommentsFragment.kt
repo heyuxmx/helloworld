@@ -17,7 +17,9 @@ import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.databinding.FragmentCommentsBinding
 import com.heyu.zhudeapp.di.SupabaseModule
+import com.heyu.zhudeapp.di.UserManager
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.launch
 
@@ -98,7 +100,7 @@ class CommentsFragment : BottomSheetDialogFragment() {
         lifecycleScope.launch {
             try {
                 val result = SupabaseModule.supabase.from("comments")
-                    .select {
+                    .select(Columns.raw("*, author:users(*)")) {
                         filter {
                             eq("post_id", post.id)
                         }
@@ -114,14 +116,17 @@ class CommentsFragment : BottomSheetDialogFragment() {
 
     private fun postNewComment(text: String) {
         lifecycleScope.launch {
+            val userId = UserManager.getCurrentUserId()
+            
             try {
                 val newComment = Comment(
                     postId = post.id,
-                    content = text
+                    content = text,
+                    userId = userId
                 )
 
                 val result = SupabaseModule.supabase.from("comments")
-                    .insert(newComment) { select() }
+                    .insert(newComment) { select(Columns.raw("*, author:users(*)")) }
                     .decodeSingle<Comment>()
 
                 commentAdapter.addComment(result)
