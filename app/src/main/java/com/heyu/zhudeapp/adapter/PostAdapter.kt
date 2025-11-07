@@ -3,6 +3,9 @@ package com.heyu.zhudeapp.adapter
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
@@ -61,6 +64,10 @@ class PostAdapter(
     fun updatePosts(newPosts: List<Post>) {
         this.posts = newPosts
         notifyDataSetChanged()
+    }
+
+    fun getPostIndex(postId: String): Int {
+        return posts.indexOfFirst { it.id.toString() == postId }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
@@ -184,6 +191,19 @@ class PostAdapter(
                 likeIcon.setImageResource(R.drawable.hollowlike)
             }
             likeIcon.setOnClickListener {
+                // Add vibration feedback
+                val vibrator = itemView.context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                if (vibrator.hasVibrator()) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        // For API 26+
+                        vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+                    } else {
+                        // Deprecated in API 26
+                        @Suppress("DEPRECATION")
+                        vibrator.vibrate(50)
+                    }
+                }
+
                 val currentLikes = likeCountText.text.toString().toIntOrNull() ?: 0
                 val newLikes = currentLikes + 1
                 likeCountText.text = newLikes.toString()

@@ -12,119 +12,78 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.activity.MainActivity
-import com.heyu.zhudeapp.di.SupabaseModule.supabase
-import io.github.jan.supabase.postgrest.from
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
-    private val TAG = "MyFirebaseMsgService"
+    private val TAG = "FCM_DEBUG" // Use a specific tag for easy filtering in Logcat
 
-    companion object {
-        // Define a constant for the key, ensuring consistency across the app.
-        const val EXTRA_POST_ID = "post_id"
-    }
-
-    /**
-     * Called when a message is received.
-     * This method is now structured to handle different types of notifications.
-     */
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
+        // This is the entry point for any push notification received.
         super.onMessageReceived(remoteMessage)
+
+        // --- Start of Diagnostic Logging ---
+        Log.d(TAG, ">>> FCM Message Received!")
         Log.d(TAG, "From: ${remoteMessage.from}")
 
-        // Determine the intent for the notification based on the message content.
-        val intent: Intent
-
-        // Case 1: The message is a standard notification payload.
-        if (remoteMessage.notification != null) {
-            Log.d(TAG, "Handling notification payload.")
-            // This is a simple notification, so it will just open the MainActivity.
-            intent = Intent(this, MainActivity::class.java)
-            remoteMessage.notification?.let {
-                sendNotification(it.title, it.body, intent)
-            }
+        // Log the data payload (this is what we send from our Edge Function)
+        if (remoteMessage.data.isNotEmpty()) {
+            Log.d(TAG, "Message data payload: " + remoteMessage.data)
+        } else {
+            Log.d(TAG, "Message data payload is EMPTY.")
         }
-        // Case 2: The message is a data payload, which is more flexible.
-        else if (remoteMessage.data.isNotEmpty()) {
-            Log.d(TAG, "Handling data payload: ${remoteMessage.data}")
-            val data = remoteMessage.data
-            val title = data["title"]
-            val body = data["body"]
-            val postId = data[EXTRA_POST_ID] // Check for our custom data.
 
-            // Create a base intent to open MainActivity.
-            intent = Intent(this, MainActivity::class.java).apply {
-                // If a postId is present, add it as an extra.
-                // This allows MainActivity to decide whether to navigate further.
-                if (postId != null) {
-                    putExtra(EXTRA_POST_ID, postId)
-                }
+        // Log the notification payload (if any, typically not used by our backend)
+        remoteMessage.notification?.let {
+            Log.d(TAG, "Message Notification Body: ${it.body}")
+        }
+        // --- End of Diagnostic Logging ---
+
+
+        // The original logic to process and show the notification.
+        if (remoteMessage.data.isNotEmpty()) {
+            val title = remoteMessage.data["title"]
+            val body = remoteMessage.data["body"]
+            val postId = remoteMessage.data["postId"]
+
+            if (title != null && body != null) {
+                sendNotification(title, body, postId)
+            } else {
+                Log.d(TAG, "Notification was not shown because title or body was null in data payload.")
             }
-
-            sendNotification(title, body, intent)
         }
     }
 
-    /**
-     * Called when a new token for the default Firebase project is generated.
-     */
     override fun onNewToken(token: String) {
+        // This is called when a new token is generated for the device.
         super.onNewToken(token)
-        Log.d(TAG, "Refreshed token: $token")
-        sendRegistrationToServer(token)
+        Log.d(TAG, ">>> New FCM Token: $token")
+        // The logic to save the token is handled in MainActivity to ensure it's tied to a logged-in user.
     }
 
-    /**
-     * Persists the FCM registration token to the backend (Supabase).
-     */
-    private fun sendRegistrationToServer(token: String?) {
-        if (token == null) {
-            Log.e(TAG, "Cannot send null token to server.")
-            return
+    private fun sendNotification(title: String, body: String, postId: String?) {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra("navigate_to_post_id", postId)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                supabase.from("fcm_tokens").upsert(
-                    value = mapOf("token" to token),
-                    onConflict = "token"
-                )
-                Log.d(TAG, "Successfully saved refreshed FCM Token to Supabase.")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error saving refreshed FCM Token to Supabase", e)
-            }
-        }
-    }
 
-    /**
-     * Creates and displays a notification. This function is now more generic.
-     * @param intent The intent to be launched when the notification is clicked.
-     */
-    private fun sendNotification(messageTitle: String?, messageBody: String?, intent: Intent) {
-        // Ensure the intent is only used once and is cleared from the top of the task stack.
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val pendingIntent = PendingIntent.getActivity(
-            this, 0 /* Request code */, intent,
+            this,
+            System.currentTimeMillis().toInt(),
+            intent,
             PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val channelId = "fcm_default_channel"
-        // Use the app name as a fallback if the title is missing.
-        val title = messageTitle ?: getString(R.string.app_name)
-
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
-            .setContentText(messageBody)
+            .setContentText(body)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // Since Android Oreo, a notification channel is required.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
@@ -135,5 +94,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
+        Log.d(TAG, "Notification sent to system UI.")
     }
 }

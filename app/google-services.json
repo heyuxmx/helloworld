@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "523515334943",
-    "project_id": "zhudeapp-push",
-    "storage_bucket": "zhudeapp-push.firebasestorage.app"
+    "project_number": "664473412338",
+    "project_id": "helloworld-d4677",
+    "storage_bucket": "helloworld-d4677.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:523515334943:android:d7aba4c1bae5171cfa602a",
+        "mobilesdk_app_id": "1:664473412338:android:937cb62d0fdbb91f59666b",
         "android_client_info": {
           "package_name": "com.heyu.zhudeapp"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyC2eTopWez1trOwxEVvx3QQH09CTSw9lpw"
+          "current_key": "AIzaSyBjbYF7BgODbWzbNXOLMTZCygxh5wL94e8"
         }
       ],
       "services": {

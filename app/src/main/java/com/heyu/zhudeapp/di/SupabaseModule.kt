@@ -34,6 +34,7 @@ object SupabaseModule {
     private const val COMMENTS_TABLE = "comments"
     private const val PROFILES_TABLE = "users"
     private const val POST_IMAGES_BUCKET = "post-images"
+    private const val AVATARS_BUCKET = "avatars"
     private const val TAG = "SupabaseModule"
 
     val supabase: SupabaseClient = createSupabaseClient(
@@ -237,17 +238,42 @@ object SupabaseModule {
     }
 
     /**
-     * 更新指定用户ID的个人资料。
-     * @param userId 要更新的用户的ID。
-     * @param newUsername 新的用户名。
-     * @param newAvatarUrl 新的头像URL（如果为null则不更新）。
+     * 上传新的用户头像，并更新用户的个人资料。
+     *
+     * @param userId 用户的ID。
+     * @param imageBytes 要上传的头像图片的字节数组。
      * @return 更新成功后的UserProfile对象。
      */
-    suspend fun updateUserProfile(userId: String, newUsername: String, newAvatarUrl: String?): UserProfile {
+    suspend fun uploadAvatar(userId: String, imageBytes: ByteArray): UserProfile {
+        // 1. 为头像生成一个独一无二的文件名，防止冲突。
+        val fileName = "${UUID.randomUUID()}.jpg"
+
+        // 2. 将图片上传到 "avatars" 存储桶。
+        supabase.storage
+            .from(AVATARS_BUCKET)
+            .upload(
+                path = fileName,
+                data = imageBytes,
+                upsert = false // 通常不建议覆盖，除非有特定逻辑
+            )
+
+        // 3. 获取上传后文件的公开访问URL。
+        val newAvatarUrl = supabase.storage.from(AVATARS_BUCKET).publicUrl(fileName)
+
+        // 4. 调用我们新创建的函数，只更新用户的头像URL。
+        return updateAvatarUrl(userId, newAvatarUrl)
+    }
+
+    /**
+     * 只更新指定用户的用户名。
+     * @param userId 要更新的用户的ID。
+     * @param newUsername 新的用户名。
+     * @return 更新成功后的UserProfile对象。
+     */
+    suspend fun updateUsername(userId: String, newUsername: String): UserProfile {
         val result = supabase.postgrest[PROFILES_TABLE].update(
             {
                 set("username", newUsername)
-                newAvatarUrl?.let { set("avatar_url", it) }
             }
         ) {
             filter {
@@ -257,9 +283,59 @@ object SupabaseModule {
         }.decodeList<UserProfile>()
 
         if (result.isEmpty()) {
-            throw IllegalStateException("User profile update failed for user ID: $userId. This is likely due to RLS policies. Please check the 'UPDATE' policy on the 'users' table.")
+            throw IllegalStateException("Username update failed for user ID: $userId. This is likely due to RLS policies.")
         }
         return result.first()
+    }
+
+    /**
+     * 只更新指定用户的头像URL。
+     * 这个方法主要由 uploadAvatar 内部调用，但也可以在已有URL时直接使用。
+     * @param userId 要更新的用户的ID。
+     * @param newAvatarUrl 新的头像URL。
+     * @return 更新成功后的UserProfile对象。
+     */
+    suspend fun updateAvatarUrl(userId: String, newAvatarUrl: String): UserProfile {
+        val result = supabase.postgrest[PROFILES_TABLE].update(
+            {
+                set("avatar_url", newAvatarUrl)
+            }
+        ) {
+            filter {
+                eq("id", userId)
+            }
+            select()
+        }.decodeList<UserProfile>()
+
+        if (result.isEmpty()) {
+            throw IllegalStateException("Avatar URL update failed for user ID: $userId. This is likely due to RLS policies.")
+        }
+        return result.first()
+    }
+
+    /**
+     * Updates the FCM token for a given user.
+     * @param userId The ID of the user to update.
+     * @param token The new FCM token.
+     */
+    suspend fun updateUserFcmToken(userId: String, token: String) {
+        try {
+            supabase.postgrest[PROFILES_TABLE].update(
+                {
+                    // Assuming you have an 'fcm_token' column in your 'users' table
+                    set("fcm_token", token)
+                }
+            ) {
+                filter {
+                    eq("id", userId)
+                }
+            }
+            Log.d(TAG, "Successfully updated FCM token for user ID: $userId")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating FCM token for user ID: $userId", e)
+            // Re-throw the exception to let the caller know something went wrong.
+            throw e
+        }
     }
 
 

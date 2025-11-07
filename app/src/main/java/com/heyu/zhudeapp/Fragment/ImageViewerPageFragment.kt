@@ -1,4 +1,4 @@
-package com.heyu.zhudeapp.activity
+package com.heyu.zhudeapp.Fragment
 
 import android.os.Bundle
 import android.view.LayoutInflater

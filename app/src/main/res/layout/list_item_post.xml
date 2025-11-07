@@ -88,7 +88,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
-                android:textColor="?android:attr/textColorSecondary"
+                android:fontFamily="@font/house"
+                android:textColor="@color/black"
                 tools:text="123" />
 
             <ImageButton
@@ -107,7 +108,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
-                android:textColor="?android:attr/textColorSecondary"
+                android:fontFamily="@font/house"
+                android:textColor="@color/black"
                 tools:text="45" />
 
         </LinearLayout>

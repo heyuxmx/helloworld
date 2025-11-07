@@ -39,16 +39,14 @@ android {
     productFlavors {
         create("xiaogao") {
             dimension = "version"
-            buildConfigField("String", "USERNAME", "\"小高宝宝\"")
             buildConfigField("String", "AVATAR_IDENTIFIER", "\"ic_launcher\"")
-            buildConfigField("String", "USER_ID", "\"user_xiaogao\"")
+            buildConfigField("String", "USER_ID", "\"12345\"")
         }
         
         create("xiaoxu") {
             dimension = "version"
-            buildConfigField("String", "USERNAME", "\"小徐爸爸\"")
             buildConfigField("String", "AVATAR_IDENTIFIER", "\"ic_launcher\"")
-            buildConfigField("String", "USER_ID", "\"user_xiaoxu\"")
+            buildConfigField("String", "USER_ID", "\"67890\"")
         }
     }
 
@@ -64,13 +62,6 @@ android {
     buildFeatures {
         viewBinding = true
         buildConfig = true
-    }
-}
-
-// Add this block to force a specific version of the browser library
-configurations.all {
-    resolutionStrategy {
-        force("androidx.browser:browser:1.8.0")
     }
 }
 
@@ -113,5 +104,11 @@ dependencies {
     implementation("io.ktor:ktor-client-content-negotiation:2.3.11")
 
     implementation(libs.photoview)
+    implementation("com.vanniktech:android-image-cropper:4.5.0")
+    implementation("de.hdodenhof:circleimageview:3.1.0")
+
+    // Android Navigation Component
+    implementation("androidx.navigation:navigation-fragment-ktx:2.7.7")
+    implementation("androidx.navigation:navigation-ui-ktx:2.7.7")
 
 }

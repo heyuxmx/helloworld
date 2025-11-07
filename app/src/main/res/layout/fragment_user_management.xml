@@ -24,6 +24,7 @@
         android:layout_marginTop="16dp"
         android:textSize="24sp"
         android:textStyle="bold"
+        android:fontFamily="@font/house"
         tools:text="User Name" />
 
 </LinearLayout>

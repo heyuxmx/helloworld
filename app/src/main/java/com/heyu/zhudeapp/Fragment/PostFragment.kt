@@ -51,6 +51,9 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, O
     private lateinit var postAdapter: PostAdapter
 
     private var imageUrlToSave: String? = null
+    // Variable to hold the post ID from a notification that needs to be scrolled to.
+    private var pendingPostIdToScroll: String? = null
+
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -81,18 +84,34 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, O
         setupFragmentResultListener()
         setupDaysCounter()
         observeNavigation()
+
+        // Trigger the initial load of posts.
+        loadPosts()
     }
 
     override fun onResume() {
         super.onResume()
-        loadPosts()
+        // The initial load is now handled in onViewCreated.
+        // Additional onResume logic can be added here if needed.
     }
 
     private fun observeNavigation() {
         viewLifecycleOwner.lifecycleScope.launch {
             mainViewModel.navigateToPost.collect { postId ->
                 if (postId.isNotBlank()) {
-                    Toasty.info(requireContext(), "接收到通知跳转指令，目标动态ID: $postId", Toasty.LENGTH_LONG).show()
+                    val postIndex = postAdapter.getPostIndex(postId)
+
+                    if (postIndex != -1) {
+                        // Post is already in the list, just scroll to it.
+                        binding.postsRecyclerView.smoothScrollToPosition(postIndex)
+                    } else {
+                        // Post not found. Trigger a refresh and store the ID to scroll to later.
+                        pendingPostIdToScroll = postId
+                        binding.swipeRefreshLayout.isRefreshing = true
+                        loadPosts()
+                        Toasty.info(requireContext(), "正在加载新动态...", Toast.LENGTH_SHORT).show()
+                    }
+                    // Consume the event.
                     mainViewModel.onNavigationComplete()
                 }
             }
@@ -158,6 +177,16 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, O
             if (_binding != null) {
                 binding.swipeRefreshLayout.isRefreshing = false
             }
+
+            // After the new list is loaded, check if we need to scroll to a specific post.
+            pendingPostIdToScroll?.let { postId ->
+                val postIndex = postAdapter.getPostIndex(postId)
+                if (postIndex != -1) {
+                    binding.postsRecyclerView.smoothScrollToPosition(postIndex)
+                }
+                // Reset the pending ID after attempting to scroll.
+                pendingPostIdToScroll = null
+            }
         }
         viewModel.error.observe(viewLifecycleOwner) { error ->
             Toasty.error(requireContext(), error, Toasty.LENGTH_LONG).show()
@@ -166,6 +195,7 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, O
             }
         }
     }
+
 
     private fun setupFab() {
         binding.fabCreatePost.setOnClickListener {
