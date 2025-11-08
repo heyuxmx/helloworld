@@ -119,6 +119,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         handleIntent(intent)
 
+
         supportFragmentManager.setFragmentResultListener("profile_updated", this) { _, _ ->
             userManagementViewModel.fetchCurrentUser() // Re-fetch to update nav header
             Toast.makeText(this, "用户资料已更新", Toast.LENGTH_SHORT).show()
