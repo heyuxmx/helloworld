@@ -2,6 +2,8 @@ package com.heyu.zhudeapp.activity
 
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
@@ -17,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.canhub.cropper.CropImageContract
 import com.canhub.cropper.CropImageContractOptions
@@ -24,15 +27,24 @@ import com.canhub.cropper.CropImageOptions
 import com.canhub.cropper.CropImageView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.navigation.NavigationView
+import com.heyu.zhudeapp.BuildConfig
 import com.heyu.zhudeapp.Fragment.countdown.DatecountFragment
 import com.heyu.zhudeapp.Fragment.welcome.MineFragment
 import com.heyu.zhudeapp.Fragment.post.PostFragment
 import com.heyu.zhudeapp.Fragment.welcome.WelcomeFragment
 import com.heyu.zhudeapp.R
+import com.heyu.zhudeapp.data.UpdateInfo
 import com.heyu.zhudeapp.databinding.ActivityMainBinding
 import com.heyu.zhudeapp.viewmodel.MainViewModel
 import com.heyu.zhudeapp.viewmodel.UserManagementViewModel
 import de.hdodenhof.circleimageview.CircleImageView
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+
 
 class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
     private lateinit var binding: ActivityMainBinding
@@ -127,6 +139,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
 
         setupNavHeader()
+        checkForUpdates() // Check for updates on startup
     }
 
     private fun setupNavHeader() {
@@ -236,5 +249,58 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
         drawerLayout.closeDrawer(GravityCompat.START)
         return true
+    }
+    
+    private fun checkForUpdates() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Get the current version code of the app.
+                val currentVersionCode = try {
+                    val packageInfo = packageManager.getPackageInfo(packageName, 0)
+                    packageInfo.versionCode
+                } catch (e: PackageManager.NameNotFoundException) {
+                    -1
+                }
+
+                if (currentVersionCode == -1) return@launch // Cannot get current version, so exit.
+
+                // Initialize the Ktor client and fetch the update info.
+                val client = io.ktor.client.HttpClient(io.ktor.client.engine.android.Android)
+                // Use the URL from BuildConfig, which is specific to the product flavor.
+                val response: io.ktor.client.statement.HttpResponse = client.get(BuildConfig.UPDATE_JSON_URL)
+                val jsonString = response.bodyAsText()
+                client.close()
+
+                val updateInfo = Json.decodeFromString<UpdateInfo>(jsonString)
+
+                // If the server version is greater than the current version, show the update dialog.
+                if (updateInfo.latestVersionCode > currentVersionCode) {
+                    withContext(Dispatchers.Main) {
+                        showUpdateDialog(updateInfo.downloadUrl)
+                    }
+                }
+            } catch (e: Exception) {
+                // For debugging, show a Toast message with the error.
+                // In a final production version, you might want to log this to a remote service
+                // or handle it silently, but for now, we need to see what's wrong.
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "检查更新失败: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun showUpdateDialog(downloadUrl: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("发现新版本")
+            .setMessage("更新到最新版本以获得更好的体验。")
+            .setPositiveButton("立即更新") { _, _ ->
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl))
+                startActivity(intent)
+            }
+            .setNegativeButton("稍后", null)
+            .setCancelable(false) // Force the user to make a choice.
+            .show()
     }
 }

@@ -17,7 +17,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -29,6 +29,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -41,12 +42,14 @@ android {
             dimension = "version"
             buildConfigField("String", "AVATAR_IDENTIFIER", "\"ic_launcher\"")
             buildConfigField("String", "USER_ID", "\"12345\"")
+            buildConfigField("String", "UPDATE_JSON_URL", "\"https://bvgtzgxscnqhugjirgzp.supabase.co/storage/v1/object/public/app-releases/update-check_xiaogao.json\"")
         }
         
         create("xiaoxu") {
             dimension = "version"
             buildConfigField("String", "AVATAR_IDENTIFIER", "\"ic_launcher\"")
             buildConfigField("String", "USER_ID", "\"67890\"")
+            buildConfigField("String", "UPDATE_JSON_URL", "\"https://bvgtzgxscnqhugjirgzp.supabase.co/storage/v1/object/public/app-releases/update-check_xiaoxu.json\"")
         }
     }
 

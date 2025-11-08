@@ -29,7 +29,7 @@ import com.heyu.zhudeapp.adapter.OnItemLongClickListener
 import com.heyu.zhudeapp.adapter.PostAdapter
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
-import com.heyu.zhudeapp.databinding.FragmentSecondBinding
+import com.heyu.zhudeapp.databinding.FragmentPostBinding
 import com.heyu.zhudeapp.di.UserManager
 import com.heyu.zhudeapp.viewmodel.MainViewModel
 import com.heyu.zhudeapp.viewmodel.PostViewModel
@@ -45,7 +45,7 @@ import java.util.concurrent.TimeUnit
 class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
     OnCommentLongClickListener {
 
-    private var _binding: FragmentSecondBinding? = null
+    private var _binding: FragmentPostBinding? = null
     private val binding get() = _binding!!
 
     private lateinit var viewModel: PostViewModel
@@ -72,7 +72,7 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = FragmentSecondBinding.inflate(inflater, container, false)
+        _binding = FragmentPostBinding.inflate(inflater, container, false)
         return binding.root
     }
 
@@ -319,17 +319,16 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
                     if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)) {
                         throw IOException("Failed to save bitmap.")
                     }
-                } ?: throw IOException("Failed to get output stream.")
-
+                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     contentValues.clear()
                     contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
                     resolver.update(savedUri, contentValues, null, null)
                 }
-                return savedUri
+                return@let savedUri
             } catch (e: Exception) {
                 resolver.delete(savedUri, null, null)
-                return null
+                throw e
             }
         }
         return null
@@ -337,6 +336,7 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
 
     override fun onDestroyView() {
         super.onDestroyView()
+        binding.postsRecyclerView.adapter = null
         _binding = null
     }
 }
