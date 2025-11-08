@@ -6,7 +6,7 @@
     android:orientation="vertical"
     android:gravity="center"
     android:padding="16dp"
-    tools:context=".Fragment.UserManagementFragment">
+    tools:context=".Fragment.welcome.UserManagementFragment">
 
     <!-- ImageView for the user's avatar -->
     <ImageView

@@ -45,7 +45,10 @@
             android:name=".activity.CreatePostActivity"
             android:exported="false" />
         <activity
-            android:name=".activity.ImageViewerActivity"
+            android:name=".activity.ProfileActivity"
+            android:exported="false" />
+        <activity
+            android:name=".activity.PostImagePagerActivity"
             android:exported="false" />
 
         <service

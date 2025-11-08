@@ -1,4 +1,4 @@
-package com.heyu.zhudeapp.Fragment
+package com.heyu.zhudeapp.Fragment.post
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -82,7 +82,7 @@ class CommentsFragment : BottomSheetDialogFragment() {
         lifecycleScope.launch {
             try {
                 val result = SupabaseModule.supabase.from("comments")
-                    .select(Columns.raw("*, author:users(*)")) {
+                    .select(Columns.Companion.raw("*, author:users(*)")) {
                         filter {
                             eq("post_id", post.id)
                         }

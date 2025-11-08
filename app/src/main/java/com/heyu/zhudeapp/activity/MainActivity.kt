@@ -24,10 +24,10 @@ import com.canhub.cropper.CropImageOptions
 import com.canhub.cropper.CropImageView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.navigation.NavigationView
-import com.heyu.zhudeapp.Fragment.DatecountFragment
-import com.heyu.zhudeapp.Fragment.MineFragment
-import com.heyu.zhudeapp.Fragment.PostFragment
-import com.heyu.zhudeapp.Fragment.WelcomeFragment
+import com.heyu.zhudeapp.Fragment.countdown.DatecountFragment
+import com.heyu.zhudeapp.Fragment.welcome.MineFragment
+import com.heyu.zhudeapp.Fragment.post.PostFragment
+import com.heyu.zhudeapp.Fragment.welcome.WelcomeFragment
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.databinding.ActivityMainBinding
 import com.heyu.zhudeapp.viewmodel.MainViewModel
@@ -51,7 +51,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 guidelines = CropImageView.Guidelines.ON,
                 cropShape = CropImageView.CropShape.OVAL,
                 aspectRatioX = 1,
-                aspectRatioY = 1
+                aspectRatioY = 1,
+                fixAspectRatio = true
             )
             val cropContractOptions = CropImageContractOptions(null, cropOptions)
             cropImageLauncher.launch(cropContractOptions)
@@ -144,8 +145,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     .into(navProfileImage)
 
                 navProfileImage.setOnClickListener {
-                    val intent = Intent(this, ImageViewerActivity::class.java).apply {
-                        putExtra(ImageViewerActivity.EXTRA_IMAGE_URL, userProfile.avatarUrl)
+                    val intent = Intent(this, ProfileActivity::class.java).apply {
+                        putExtra(ProfileActivity.EXTRA_IMAGE_URL, userProfile.avatarUrl)
                     }
                     imageViewerLauncher.launch(intent)
                 }

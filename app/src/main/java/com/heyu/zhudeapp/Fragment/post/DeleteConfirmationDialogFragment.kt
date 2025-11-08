@@ -1,4 +1,4 @@
-package com.heyu.zhudeapp.Fragment
+package com.heyu.zhudeapp.Fragment.post
 
 import android.app.Dialog
 import android.os.Bundle
@@ -40,7 +40,7 @@ class DeleteConfirmationDialogFragment : DialogFragment() {
         fun newInstance(post: Post): DeleteConfirmationDialogFragment {
             val fragment = DeleteConfirmationDialogFragment()
             val args = Bundle().apply {
-                putString(BUNDLE_KEY_POST, Json.encodeToString(post))
+                putString(BUNDLE_KEY_POST, Json.Default.encodeToString(post))
             }
             fragment.arguments = args
             return fragment

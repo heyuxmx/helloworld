@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:gravity="center"
-    tools:context=".Fragment.WelcomeFragment">
+    tools:context=".Fragment.welcome.WelcomeFragment">
     <LinearLayout
         android:id="@+id/house"
         android:layout_width="match_parent"

@@ -6,10 +6,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.heyu.zhudeapp.databinding.ItemImageBinding
 
-class ImageAdapter(
+class ProfileAdapter(
     private val imageUrls: List<String>,
     private val onImageClick: (position: Int) -> Unit
-) : RecyclerView.Adapter<ImageAdapter.ImageViewHolder>() {
+) : RecyclerView.Adapter<ProfileAdapter.ImageViewHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ImageViewHolder {
         val binding = ItemImageBinding.inflate(LayoutInflater.from(parent.context), parent, false)

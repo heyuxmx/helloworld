@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black"
-    tools:context=".activity.ImageViewerActivity">
+    tools:context=".activity.ProfileActivity">
 
     <com.github.chrisbanes.photoview.PhotoView
         android:id="@+id/photo_view"
@@ -24,7 +24,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:layout_margin="16dp"
+        android:layout_margin="50dp"
         android:text="更换头像" />
 
 </RelativeLayout>

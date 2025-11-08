@@ -22,7 +22,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.heyu.zhudeapp.R
-import com.heyu.zhudeapp.activity.ImageViewerActivity
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.di.SupabaseModule
@@ -38,12 +37,18 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
+
 // Listener for long-clicking the whole post item (e.g., for deletion)
 interface OnItemLongClickListener {
     fun onItemLongClick(post: Post)
 }
 
-// Listener for long-clicking a comment (for deletion)
+// Listener for saving an image on long-click
+interface OnImageSaveListener {
+    fun onImageSave(imageUrl: String)
+}
+
+// Listener f<caret>or long-clicking a comment (for deletion)
 interface OnCommentLongClickListener {
     fun onCommentLongClick(post: Post, comment: Comment)
 }
@@ -225,14 +230,6 @@ class PostAdapter(
             if (post.imageUrls.isNotEmpty()) {
                 val imageAdapter = PostImagesAdapter(
                     imageUris = post.imageUrls,
-                    onImageClickListener = { position ->
-                        val context = itemView.context
-                        val intent = Intent(context, ImageViewerActivity::class.java).apply {
-                            putStringArrayListExtra("image_urls", ArrayList(post.imageUrls))
-                            putExtra("current_position", position)
-                        }
-                        context.startActivity(intent)
-                    },
                     onImageSaveListener = imageSaveListener // Pass the listener down
                 )
                 imagesRecyclerView.apply {

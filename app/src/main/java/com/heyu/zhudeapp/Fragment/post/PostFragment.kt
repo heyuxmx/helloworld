@@ -1,4 +1,4 @@
-package com.heyu.zhudeapp.Fragment
+package com.heyu.zhudeapp.Fragment.post
 
 import android.Manifest
 import android.content.ContentValues
@@ -39,8 +39,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.IOException
+import java.util.Calendar
+import java.util.concurrent.TimeUnit
 
-class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, OnCommentLongClickListener {
+class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
+    OnCommentLongClickListener {
 
     private var _binding: FragmentSecondBinding? = null
     private val binding get() = _binding!!
@@ -119,19 +122,19 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, O
     }
 
     private fun setupDaysCounter() {
-        val startDate = java.util.Calendar.getInstance().apply {
-            set(2024, java.util.Calendar.DECEMBER, 2, 0, 0, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
+        val startDate = Calendar.getInstance().apply {
+            set(2024, Calendar.DECEMBER, 2, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
         }
-        val today = java.util.Calendar.getInstance().apply {
-            set(java.util.Calendar.HOUR_OF_DAY, 0)
-            set(java.util.Calendar.MINUTE, 0)
-            set(java.util.Calendar.SECOND, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
+        val today = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
         }
 
         val diffInMillis = today.timeInMillis - startDate.timeInMillis
-        val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(diffInMillis) + 1
+        val days = TimeUnit.MILLISECONDS.toDays(diffInMillis) + 1
         binding.daysNumberTextView.text = days.toString()
     }
 
@@ -141,7 +144,7 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, O
             if (confirmed) {
                 val postJson = bundle.getString(DeleteConfirmationDialogFragment.BUNDLE_KEY_POST)
                 postJson?.let {
-                    val post = Json.decodeFromString<Post>(it)
+                    val post = Json.Default.decodeFromString<Post>(it)
                     deletePost(post)
                 }
             }
@@ -223,11 +226,7 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, O
             .show()
     }
 
-    override fun onSaveImage(imageUrl: String?) {
-        if (imageUrl == null) {
-            Toast.makeText(requireContext(), "无法保存图片，链接不存在", Toast.LENGTH_SHORT).show()
-            return
-        }
+    override fun onImageSave(imageUrl: String) {
         this.imageUrlToSave = imageUrl
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -288,7 +287,8 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener, O
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), "保存失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "保存失败: ${e.message}", Toast.LENGTH_SHORT)
+                        .show()
                 }
             }
         }

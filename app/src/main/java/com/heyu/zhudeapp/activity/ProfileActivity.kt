@@ -11,11 +11,11 @@ import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
-import com.heyu.zhudeapp.databinding.ActivityImageViewerBinding
+import com.heyu.zhudeapp.databinding.ActivityProfileBinding
 
-class ImageViewerActivity : AppCompatActivity() {
+class ProfileActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityImageViewerBinding
+    private lateinit var binding: ActivityProfileBinding
 
     companion object {
         const val EXTRA_IMAGE_URL = "image_url"
@@ -25,7 +25,7 @@ class ImageViewerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityImageViewerBinding.inflate(layoutInflater)
+        binding = ActivityProfileBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         val imageUrl = intent.getStringExtra(EXTRA_IMAGE_URL)
