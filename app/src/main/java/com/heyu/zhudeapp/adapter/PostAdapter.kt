@@ -25,7 +25,6 @@ import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.activity.ImageViewerActivity
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
-import com.heyu.zhudeapp.data.UserProfile
 import com.heyu.zhudeapp.di.SupabaseModule
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -227,11 +226,12 @@ class PostAdapter(
                 val imageAdapter = PostImagesAdapter(
                     imageUris = post.imageUrls,
                     onImageClickListener = { position ->
-                         val intent = Intent(itemView.context, ImageViewerActivity::class.java).apply {
+                        val context = itemView.context
+                        val intent = Intent(context, ImageViewerActivity::class.java).apply {
                             putStringArrayListExtra("image_urls", ArrayList(post.imageUrls))
                             putExtra("current_position", position)
                         }
-                        itemView.context.startActivity(intent)
+                        context.startActivity(intent)
                     },
                     onImageSaveListener = imageSaveListener // Pass the listener down
                 )
