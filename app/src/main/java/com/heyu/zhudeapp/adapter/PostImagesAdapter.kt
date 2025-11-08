@@ -48,11 +48,7 @@ class PostImagesAdapter(
                 }
             }
 
-            // Correctly implement the long-click listener for saving the image
-            binding.imageItem.setOnLongClickListener {
-                listener.onImageSave(imageUrl)
-                true // Consume the long-click event
-            }
+            // The setOnLongClickListener has been intentionally removed as per your request.
         }
     }
 }

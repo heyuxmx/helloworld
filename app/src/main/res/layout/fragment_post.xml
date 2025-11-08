@@ -18,7 +18,7 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:padding="5dp">
 
             <TextView
                 android:id="@+id/days_prefix_text_view"

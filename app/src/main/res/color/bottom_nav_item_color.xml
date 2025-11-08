@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 当组件被选中时，颜色为浅蓝色 -->
+    <item android:state_checked="true" android:color="#0FDFEE"/>
+    <!-- 默认颜色 (未被选中时)，为黑色 -->
+    <item android:color="#000000"/>
+</selector>

@@ -229,18 +229,17 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
     override fun onImageSave(imageUrl: String) {
         this.imageUrlToSave = imageUrl
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        // Unified permission check for all relevant Android versions.
+        // For Android 10 (Q) and above, WRITE_EXTERNAL_STORAGE is not strictly needed for saving to app's own collection,
+        // but this unified check simplifies the logic and ensures it works on older devices.
+        if (ContextCompat.checkSelfPermission(
+                requireContext(),
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+        ) {
             saveImageToGallery(imageUrl)
         } else {
-            if (ContextCompat.checkSelfPermission(
-                    requireContext(),
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                saveImageToGallery(imageUrl)
-            } else {
-                requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            }
+            requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
     }
 

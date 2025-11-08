@@ -12,12 +12,24 @@ android {
     namespace = "com.heyu.zhudeapp"
     compileSdk = 36
 
+    signingConfigs {
+        create("release") {
+            val releaseStoreFile = project.findProperty("RELEASE_STORE_FILE")
+            if (releaseStoreFile != null) {
+                storeFile = file(releaseStoreFile)
+                storePassword = project.findProperty("RELEASE_STORE_PASSWORD") as String?
+                keyAlias = project.findProperty("RELEASE_KEY_ALIAS") as String?
+                keyPassword = project.findProperty("RELEASE_KEY_PASSWORD") as String?
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.heyu.zhudeapp"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.1"
+        versionCode = 4
+        versionName = "1.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -29,7 +41,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
