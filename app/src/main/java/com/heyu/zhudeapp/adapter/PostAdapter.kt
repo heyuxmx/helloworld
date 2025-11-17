@@ -52,11 +52,9 @@ interface OnCommentLongClickListener {
     fun onCommentLongClick(post: Post, comment: Comment)
 }
 
-// NEW: Unified listener for all comment input interactions
+// REFACTORED: Simplified listener. Its only job is to signal the fragment to open the focus view.
 interface OnCommentInteractionListener {
     fun onCommentDraftClicked(post: Post)
-    fun onCommentDraftChanged(postId: Long, newDraft: String)
-    fun onSendCommentClicked(postId: Long, commentText: String)
 }
 
 class PostAdapter(
@@ -64,10 +62,10 @@ class PostAdapter(
     private var commentDrafts: Map<Long, String>,
     private val lifecycleScope: CoroutineScope,
     private val currentUserId: String, // The ID of the currently logged-in user
-    private val onItemLongClickListener: OnItemLongClickListener, 
-    private val onImageSaveListener: OnImageSaveListener, 
+    private val onItemLongClickListener: OnItemLongClickListener,
+    private val onImageSaveListener: OnImageSaveListener,
     private val onCommentLongClickListener: OnCommentLongClickListener,
-    private val onCommentInteractionListener: OnCommentInteractionListener // NEW LISTENER
+    private val onCommentInteractionListener: OnCommentInteractionListener // REFACTORED
 ) : RecyclerView.Adapter<PostAdapter.PostViewHolder>() {
 
     private val likedPostIds = mutableSetOf<Long>()
@@ -76,7 +74,7 @@ class PostAdapter(
     fun updatePostsAndDrafts(newPosts: List<Post>, newDrafts: Map<Long, String>) {
         this.posts = newPosts
         this.commentDrafts = newDrafts
-        notifyDataSetChanged() 
+        notifyDataSetChanged()
     }
 
     fun getPostIndex(postId: String): Int {
@@ -101,7 +99,7 @@ class PostAdapter(
         private val lifecycleScope: CoroutineScope,
         private val likedPostIds: MutableSet<Long>,
         private val currentUserId: String,
-        private val commentInteractionListener: OnCommentInteractionListener // NEW
+        private val commentInteractionListener: OnCommentInteractionListener // REFACTORED
     ) : RecyclerView.ViewHolder(itemView) {
         private val authorAvatar: ImageView = itemView.findViewById(R.id.author_avatar_image)
         private val authorUsername: TextView = itemView.findViewById(R.id.author_username_text)
@@ -111,23 +109,25 @@ class PostAdapter(
         private val likeIcon: ImageButton = itemView.findViewById(R.id.like_icon)
         private val likeCountText: TextView = itemView.findViewById(R.id.like_count_text)
         private val commentCountText: TextView = itemView.findViewById(R.id.comment_count_text)
-        private val commentInput: EditText = itemView.findViewById(R.id.comment_input) // Draft input
-        private val sendCommentButton: ImageButton = itemView.findViewById(R.id.send_comment_button) // Draft send
+        private val commentInput: EditText = itemView.findViewById(R.id.comment_input) // Will be treated as a button
+        private val sendCommentButton: ImageButton = itemView.findViewById(R.id.send_comment_button) // Will be hidden
         private val commentsRecyclerView: RecyclerView = itemView.findViewById(R.id.comments_recycler_view)
 
+        // TextWatcher is no longer needed here.
         private var textWatcher: TextWatcher? = null
 
         private lateinit var commentsAdapter: CommentAdapter
-        
+
         fun bind(
             post: Post,
             draft: String,
-            longClickListener: OnItemLongClickListener, 
-            imageSaveListener: OnImageSaveListener, 
-            commentLongClickListener: OnCommentLongClickListener 
+            longClickListener: OnItemLongClickListener,
+            imageSaveListener: OnImageSaveListener,
+            commentLongClickListener: OnCommentLongClickListener
         ) {
             // Unbind previous listeners to prevent conflicts
             commentInput.removeTextChangedListener(textWatcher)
+            textWatcher = null
             commentInput.setOnClickListener(null)
             sendCommentButton.setOnClickListener(null)
 
@@ -135,8 +135,8 @@ class PostAdapter(
             authorUsername.text = post.author?.username ?: "匿名用户"
             Glide.with(itemView.context)
                 .load(post.author?.avatarUrl)
-                .placeholder(R.drawable.hollowlike) 
-                .error(R.drawable.hollowlike) 
+                .placeholder(R.drawable.hollowlike)
+                .error(R.drawable.hollowlike)
                 .circleCrop()
                 .into(authorAvatar)
 
@@ -145,27 +145,23 @@ class PostAdapter(
             likeCountText.text = post.likes.toString()
             commentCountText.text = post.comments.size.toString()
 
-            // Set draft text
-            // Only set text if it's different to avoid moving the cursor
-            if (commentInput.text.toString() != draft) {
-                commentInput.setText(draft)
-            }
+            // --- REFACTORED COMMENT INTERACTION LOGIC ---
 
-            // --- NEW COMMENT INTERACTION LOGIC ---
-            textWatcher = commentInput.addTextChangedListener {
-                commentInteractionListener.onCommentDraftChanged(post.id, it.toString())
-            }
+            // 1. Visually treat the comment box as a read-only button/display area.
+            commentInput.setText(draft.ifEmpty { "添加评论..." })
+            commentInput.isFocusable = false
+            commentInput.isFocusableInTouchMode = false
+            commentInput.isClickable = true
 
+            // 2. Hide the separate send button, as all sending happens in the focus view.
+            sendCommentButton.visibility = View.GONE
+
+            // 3. The only interaction is to click the entire box to open the focus view.
             commentInput.setOnClickListener {
                 commentInteractionListener.onCommentDraftClicked(post)
             }
-
-            sendCommentButton.setOnClickListener {
-                val commentText = commentInput.text.toString().trim()
-                if (commentText.isNotEmpty()) {
-                    commentInteractionListener.onSendCommentClicked(post.id, commentText)
-                }
-            }
+            
+            // --- END REFACTORED LOGIC ---
 
             // Setup Comments Adapter
             commentsAdapter = CommentAdapter(
@@ -232,7 +228,7 @@ class PostAdapter(
 
             itemView.setOnLongClickListener {
                 longClickListener.onItemLongClick(post)
-                true 
+                true
             }
         }
     }

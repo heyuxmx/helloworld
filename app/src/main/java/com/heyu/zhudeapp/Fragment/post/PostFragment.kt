@@ -6,15 +6,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.view.GestureDetector
-import android.view.LayoutInflater
-import android.view.MotionEvent
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -33,17 +28,17 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.heyu.zhudeapp.activity.CreatePostActivity
+import com.heyu.zhudeapp.adapter.PostAdapter
 import com.heyu.zhudeapp.adapter.OnCommentInteractionListener
 import com.heyu.zhudeapp.adapter.OnCommentLongClickListener
 import com.heyu.zhudeapp.adapter.OnImageSaveListener
 import com.heyu.zhudeapp.adapter.OnItemLongClickListener
-import com.heyu.zhudeapp.adapter.PostAdapter
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.databinding.FragmentPostBinding
 import com.heyu.zhudeapp.di.UserManager
-import com.heyu.zhudeapp.viewmodel.MainViewModel
 import com.heyu.zhudeapp.viewmodel.PostViewModel
+import com.heyu.zhudeapp.viewmodel.MainViewModel
 import es.dmoral.toasty.Toasty
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
@@ -54,14 +49,16 @@ import java.io.IOException
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
-class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
-    OnCommentLongClickListener, OnCommentInteractionListener {
 
+class PostFragment : Fragment(), OnItemLongClickListener,
+    OnImageSaveListener, OnCommentLongClickListener,
+    OnCommentInteractionListener {
+
+    private val mainViewModel: MainViewModel by activityViewModels()
+    private lateinit var viewModel: PostViewModel
     private var _binding: FragmentPostBinding? = null
     private val binding get() = _binding!!
 
-    private lateinit var viewModel: PostViewModel
-    private val mainViewModel: MainViewModel by activityViewModels()
 
     private lateinit var postAdapter: PostAdapter
 
@@ -161,7 +158,7 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
             }
         }
     }
-    
+
     // This is the CORRECT way to handle "click outside to dismiss"
     private fun setupRecyclerViewTouchListener() {
         val gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
@@ -309,8 +306,8 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
 
         // Observe draft changes
         lifecycleScope.launch {
-            viewModel.commentDrafts.collectLatest {
-                postAdapter.updatePostsAndDrafts(viewModel.posts.value ?: emptyList(), it)
+            viewModel.commentDrafts.collectLatest { drafts ->
+                postAdapter.updatePostsAndDrafts(viewModel.posts.value ?: emptyList(), drafts)
             }
         }
     }
@@ -354,16 +351,6 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
         } else {
             requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
-    }
-    
-    override fun onCommentDraftChanged(postId: Long, newDraft: String) {
-        viewModel.updateCommentDraft(postId, newDraft)
-    }
-
-    override fun onSendCommentClicked(postId: Long, commentText: String) {
-        val currentUserId = UserManager.getCurrentUserId()
-        viewModel.addComment(postId, commentText, currentUserId)
-        viewModel.updateCommentDraft(postId, "") // Clear draft after sending
     }
 
     private fun saveImageToGallery(imageUrl: String) {
@@ -409,7 +396,7 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), "保存失败: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(requireContext(), "保存失败: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -425,14 +412,5 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
         lifecycleScope.launch {
             viewModel.deleteComment(comment)
         }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        onBackPressedCallback?.remove()
-        onBackPressedCallback = null
-        // Avoid memory leaks
-        binding.postsRecyclerView.adapter = null
-        _binding = null
     }
 }
