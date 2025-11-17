@@ -10,7 +10,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
@@ -27,6 +29,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.heyu.zhudeapp.activity.CreatePostActivity
@@ -99,6 +102,7 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
         observeNavigation()
         setupFocusCommentViewListeners()
         setupKeyboardListener() // The single source of truth for the focus view
+        setupRecyclerViewTouchListener() // Handles "click outside" to dismiss
 
         // Trigger the initial load of posts.
         loadPosts()
@@ -142,10 +146,12 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
     private fun setupFocusCommentViewListeners() {
         binding.focusSendButton.setOnClickListener {
             val commentText = binding.focusCommentInput.text.toString().trim()
-            if (commentText.isNotEmpty() && focusedPostId != null) {
+            val postId = focusedPostId // Capture the ID before it's nulled by hideKeyboard
+            if (commentText.isNotEmpty() && postId != null) {
                 val currentUserId = UserManager.getCurrentUserId()
-                viewModel.addComment(focusedPostId!!, commentText, currentUserId)
-                hideKeyboard() // Simply hide the keyboard. The listener does the rest.
+                viewModel.addComment(postId, commentText, currentUserId)
+                viewModel.updateCommentDraft(postId, "") // THE FIX: Clear the draft
+                hideKeyboard() // Now, everything is done, hide the UI.
             }
         }
 
@@ -154,13 +160,34 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
                 viewModel.updateCommentDraft(postId, editable.toString())
             }
         }
-
-        // Handle "Click outside" to dismiss
-        binding.root.setOnClickListener {
-            binding.focusCommentInput.clearFocus()
-            hideKeyboard()
-        }
     }
+    
+    // This is the CORRECT way to handle "click outside to dismiss"
+    private fun setupRecyclerViewTouchListener() {
+        val gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                // This is the tap we are interested in.
+                if (binding.focusCommentContainer.visibility == View.VISIBLE) {
+                    // If the focus view is visible, a tap on the RV should hide it.
+                    hideKeyboard()
+                }
+                return super.onSingleTapUp(e)
+            }
+        })
+
+        binding.postsRecyclerView.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                // Let the gesture detector inspect the event.
+                // We don't want to intercept the event, just listen for a tap.
+                gestureDetector.onTouchEvent(e)
+                return false // Let the RecyclerView handle the event as usual.
+            }
+
+            override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
+            override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
+        })
+    }
+
 
     private fun hideKeyboard() {
         val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
@@ -247,12 +274,6 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
         binding.postsRecyclerView.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = postAdapter
-            // Prevent clicks on the RecyclerView from propagating to the root view
-            setOnTouchListener { v, event ->
-                v.parent.requestDisallowInterceptTouchEvent(true)
-                v.onTouchEvent(event)
-                true
-            }
         }
     }
 
@@ -371,22 +392,24 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
                         if (outputStream == null) {
                             throw IOException("Failed to get output stream.")
                         }
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+                        if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 95, outputStream)) {
+                            throw IOException("Failed to save bitmap.")
+                        }
                     }
 
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         contentValues.clear()
                         contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
-                        resolver.update(it, contentValues, null, null)
+                        resolver.update(uri, contentValues, null, null)
                     }
-                    withContext(Dispatchers.Main) {
-                        Toasty.success(requireContext(), "图片已保存至相册", Toast.LENGTH_SHORT).show()
-                    }
-                } ?: throw IOException("Failed to create new MediaStore record.")
 
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(requireContext(), "图片已保存到相册", Toast.LENGTH_SHORT).show()
+                    }
+                }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toasty.error(requireContext(), "保存失败: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(requireContext(), "保存失败: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -406,7 +429,10 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
 
     override fun onDestroyView() {
         super.onDestroyView()
-        onBackPressedCallback?.remove() // Clean up the callback
+        onBackPressedCallback?.remove()
+        onBackPressedCallback = null
+        // Avoid memory leaks
+        binding.postsRecyclerView.adapter = null
         _binding = null
     }
 }
