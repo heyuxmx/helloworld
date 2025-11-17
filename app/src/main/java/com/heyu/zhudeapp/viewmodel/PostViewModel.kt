@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.di.SupabaseModule
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -17,6 +19,23 @@ class PostViewModel : ViewModel() {
 
     private val _error = MutableLiveData<String>()
     val error: LiveData<String> = _error
+
+    // --- Comment Draft Management ---
+    private val _commentDrafts = MutableStateFlow<Map<Long, String>>(emptyMap())
+    val commentDrafts = _commentDrafts.asStateFlow()
+
+    fun updateCommentDraft(postId: Long, draft: String) {
+        val newDrafts = _commentDrafts.value.toMutableMap()
+        newDrafts[postId] = draft
+        _commentDrafts.value = newDrafts
+    }
+
+    private fun clearCommentDraft(postId: Long) {
+        val newDrafts = _commentDrafts.value.toMutableMap()
+        newDrafts.remove(postId)
+        _commentDrafts.value = newDrafts
+    }
+    // --------------------------------
 
     fun fetchPosts() {
         viewModelScope.launch {
@@ -69,6 +88,7 @@ class PostViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 SupabaseModule.addComment(postId, commentText, userId)
+                clearCommentDraft(postId) // Clear the draft after successful post
                 fetchPosts() // Refresh posts to show the new comment
             } catch (e: Exception) {
                 _error.postValue("添加评论失败: ${e.message}")

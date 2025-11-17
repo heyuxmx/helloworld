@@ -1,9 +1,12 @@
 package com.heyu.zhudeapp.adapter
 
 import android.content.ContentValues
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.provider.MediaStore
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -39,6 +42,18 @@ class ImagePagerAdapter(private val imageUrls: List<String>) :
             .into(holder.binding.photoView)
 
         holder.binding.photoView.setOnLongClickListener {
+            // Vibrate for feedback
+            val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            if (vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    //deprecated in API 26
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(50)
+                }
+            }
+
             AlertDialog.Builder(context)
                 .setMessage("要保存这张图片吗？")
                 .setPositiveButton("保存") { dialog, _ ->

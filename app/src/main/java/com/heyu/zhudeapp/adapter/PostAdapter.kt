@@ -2,21 +2,21 @@ package com.heyu.zhudeapp.adapter
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
-import android.view.KeyEvent
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.widget.addTextChangedListener
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -37,7 +37,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
-
 // Listener for long-clicking the whole post item (e.g., for deletion)
 interface OnItemLongClickListener {
     fun onItemLongClick(post: Post)
@@ -48,26 +47,36 @@ interface OnImageSaveListener {
     fun onImageSave(imageUrl: String)
 }
 
-// Listener f<caret>or long-clicking a comment (for deletion)
+// Listener for long-clicking a comment (for deletion)
 interface OnCommentLongClickListener {
     fun onCommentLongClick(post: Post, comment: Comment)
 }
 
+// NEW: Unified listener for all comment input interactions
+interface OnCommentInteractionListener {
+    fun onCommentDraftClicked(post: Post)
+    fun onCommentDraftChanged(postId: Long, newDraft: String)
+    fun onSendCommentClicked(postId: Long, commentText: String)
+}
+
 class PostAdapter(
     private var posts: List<Post>,
+    private var commentDrafts: Map<Long, String>,
     private val lifecycleScope: CoroutineScope,
     private val currentUserId: String, // The ID of the currently logged-in user
-    private val onItemLongClickListener: OnItemLongClickListener, // Existing listener for post deletion
-    private val onImageSaveListener: OnImageSaveListener, // Listener for image saving
-    private val onCommentLongClickListener: OnCommentLongClickListener // Listener for comment deletion
+    private val onItemLongClickListener: OnItemLongClickListener, 
+    private val onImageSaveListener: OnImageSaveListener, 
+    private val onCommentLongClickListener: OnCommentLongClickListener,
+    private val onCommentInteractionListener: OnCommentInteractionListener // NEW LISTENER
 ) : RecyclerView.Adapter<PostAdapter.PostViewHolder>() {
 
     private val likedPostIds = mutableSetOf<Long>()
 
     @SuppressLint("NotifyDataSetChanged")
-    fun updatePosts(newPosts: List<Post>) {
+    fun updatePostsAndDrafts(newPosts: List<Post>, newDrafts: Map<Long, String>) {
         this.posts = newPosts
-        notifyDataSetChanged()
+        this.commentDrafts = newDrafts
+        notifyDataSetChanged() 
     }
 
     fun getPostIndex(postId: String): Int {
@@ -76,14 +85,13 @@ class PostAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.list_item_post, parent, false)
-        // Pass the currentUserId to the ViewHolder
-        return PostViewHolder(view, lifecycleScope, likedPostIds, currentUserId)
+        return PostViewHolder(view, lifecycleScope, likedPostIds, currentUserId, onCommentInteractionListener)
     }
 
     override fun onBindViewHolder(holder: PostViewHolder, position: Int) {
         val post = posts[position]
-        // Pass all listeners down to the ViewHolder
-        holder.bind(post, onItemLongClickListener, onImageSaveListener, onCommentLongClickListener)
+        val draft = commentDrafts[post.id] ?: ""
+        holder.bind(post, draft, onItemLongClickListener, onImageSaveListener, onCommentLongClickListener)
     }
 
     override fun getItemCount(): Int = posts.size
@@ -92,7 +100,8 @@ class PostAdapter(
         itemView: View,
         private val lifecycleScope: CoroutineScope,
         private val likedPostIds: MutableSet<Long>,
-        private val currentUserId: String // Receive the current user's ID
+        private val currentUserId: String,
+        private val commentInteractionListener: OnCommentInteractionListener // NEW
     ) : RecyclerView.ViewHolder(itemView) {
         private val authorAvatar: ImageView = itemView.findViewById(R.id.author_avatar_image)
         private val authorUsername: TextView = itemView.findViewById(R.id.author_username_text)
@@ -102,72 +111,32 @@ class PostAdapter(
         private val likeIcon: ImageButton = itemView.findViewById(R.id.like_icon)
         private val likeCountText: TextView = itemView.findViewById(R.id.like_count_text)
         private val commentCountText: TextView = itemView.findViewById(R.id.comment_count_text)
-        private val commentInput: EditText = itemView.findViewById(R.id.comment_input)
-        private val sendCommentButton: ImageButton = itemView.findViewById(R.id.send_comment_button)
+        private val commentInput: EditText = itemView.findViewById(R.id.comment_input) // Draft input
+        private val sendCommentButton: ImageButton = itemView.findViewById(R.id.send_comment_button) // Draft send
         private val commentsRecyclerView: RecyclerView = itemView.findViewById(R.id.comments_recycler_view)
 
+        private var textWatcher: TextWatcher? = null
+
         private lateinit var commentsAdapter: CommentAdapter
-        private fun sendCommentAction(post: Post) {
-            val commentText = commentInput.text.toString().trim()
-            if (commentText.isEmpty()) {
-                return
-            }
-            sendCommentButton.isEnabled = false
-            commentInput.isEnabled = false
-
-            lifecycleScope.launch {
-                try {
-                    // First, fetch the current user's profile using the new helper function
-                    val currentUserProfile = SupabaseModule.getUserProfile(currentUserId)
-
-                    if (currentUserProfile == null) {
-                        // If the profile can't be fetched, show an error and don't proceed
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(itemView.context, "无法获取用户信息，请稍后重试", Toast.LENGTH_SHORT).show()
-                        }
-                        return@launch
-                    }
-
-                    // Proceed to add the comment to the database
-                    val newCommentIncomplete = SupabaseModule.addComment(post.id, commentText, currentUserId)
-
-                    // The returned comment object might not have the author's profile.
-                    // We create a complete object by attaching the profile we just fetched.
-                    val newCommentComplete = newCommentIncomplete.copy(author = currentUserProfile)
-
-                    // Update the UI on the main thread with the complete comment object
-                    withContext(Dispatchers.Main) {
-                        commentsAdapter.addComment(newCommentComplete)
-                        commentCountText.text = commentsAdapter.itemCount.toString()
-                        commentInput.text.clear()
-                        commentsRecyclerView.smoothScrollToPosition(commentsAdapter.itemCount - 1)
-                        val imm = itemView.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                        imm.hideSoftInputFromWindow(commentInput.windowToken, 0)
-                    }
-                } catch (e: Exception) {
-                     withContext(Dispatchers.Main) {
-                        Toast.makeText(itemView.context, "评论失败: ${e.message}", Toast.LENGTH_LONG).show()
-                    }
-                } finally {
-                    withContext(Dispatchers.Main) {
-                       sendCommentButton.isEnabled = true
-                       commentInput.isEnabled = true
-                    }
-                }
-            }
-        }
+        
         fun bind(
             post: Post,
-            longClickListener: OnItemLongClickListener, // Existing listener
-            imageSaveListener: OnImageSaveListener, // New listener
-            commentLongClickListener: OnCommentLongClickListener // Listener for comments
+            draft: String,
+            longClickListener: OnItemLongClickListener, 
+            imageSaveListener: OnImageSaveListener, 
+            commentLongClickListener: OnCommentLongClickListener 
         ) {
+            // Unbind previous listeners to prevent conflicts
+            commentInput.removeTextChangedListener(textWatcher)
+            commentInput.setOnClickListener(null)
+            sendCommentButton.setOnClickListener(null)
+
             // Bind author information
             authorUsername.text = post.author?.username ?: "匿名用户"
             Glide.with(itemView.context)
                 .load(post.author?.avatarUrl)
-                .placeholder(R.drawable.hollowlike) // Using an existing drawable as a temporary placeholder
-                .error(R.drawable.hollowlike) // Using an existing drawable as a temporary error fallback
+                .placeholder(R.drawable.hollowlike) 
+                .error(R.drawable.hollowlike) 
                 .circleCrop()
                 .into(authorAvatar)
 
@@ -175,6 +144,28 @@ class PostAdapter(
             postTimestampText.text = formatTimestamp(post.createdAt)
             likeCountText.text = post.likes.toString()
             commentCountText.text = post.comments.size.toString()
+
+            // Set draft text
+            // Only set text if it's different to avoid moving the cursor
+            if (commentInput.text.toString() != draft) {
+                commentInput.setText(draft)
+            }
+
+            // --- NEW COMMENT INTERACTION LOGIC ---
+            textWatcher = commentInput.addTextChangedListener {
+                commentInteractionListener.onCommentDraftChanged(post.id, it.toString())
+            }
+
+            commentInput.setOnClickListener {
+                commentInteractionListener.onCommentDraftClicked(post)
+            }
+
+            sendCommentButton.setOnClickListener {
+                val commentText = commentInput.text.toString().trim()
+                if (commentText.isNotEmpty()) {
+                    commentInteractionListener.onSendCommentClicked(post.id, commentText)
+                }
+            }
 
             // Setup Comments Adapter
             commentsAdapter = CommentAdapter(
@@ -199,10 +190,8 @@ class PostAdapter(
                 val vibrator = itemView.context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
                 if (vibrator.hasVibrator()) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        // For API 26+
                         vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
                     } else {
-                        // Deprecated in API 26
                         @Suppress("DEPRECATION")
                         vibrator.vibrate(50)
                     }
@@ -241,25 +230,6 @@ class PostAdapter(
                 imagesRecyclerView.visibility = View.GONE
             }
 
-            // Send Comment Logic
-            sendCommentButton.setOnClickListener {
-                sendCommentAction(post)
-            }
-
-            commentInput.setOnEditorActionListener { _, actionId, event ->
-                val isActionSend = actionId == EditorInfo.IME_ACTION_SEND
-                val isActionDone = actionId == EditorInfo.IME_ACTION_DONE
-                val isEnterPress = event?.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_ENTER
-
-                if (isActionSend || isActionDone || isEnterPress) {
-                    sendCommentAction(post)
-                    true // Consume the event
-                } else {
-                    false // Do not consume the event
-                }
-            }
-
-            // Restore the long-click listener for the entire post item
             itemView.setOnLongClickListener {
                 longClickListener.onItemLongClick(post)
                 true 
@@ -275,7 +245,6 @@ private fun formatTimestamp(timestamp: String?): String {
 
     fun parseTimestamp(ts: String): ParseResult? {
         val zone = ZoneId.of("Asia/Shanghai")
-        // Try parsing with optional milliseconds and timezone
         val formatters = listOf(
             DateTimeFormatter.ISO_OFFSET_DATE_TIME to true,
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX") to true,
@@ -299,12 +268,10 @@ private fun formatTimestamp(timestamp: String?): String {
                 // Continue to next formatter
             }
         }
-        // Fallback for timestamps that might not have a 'T'
         try {
             val ldt = LocalDateTime.parse(ts.replace(" ", "T"))
             return ParseResult(ldt.atZone(zone), true)
         } catch (e: DateTimeParseException) {
-            // Final fallback failed
         }
         return null
     }

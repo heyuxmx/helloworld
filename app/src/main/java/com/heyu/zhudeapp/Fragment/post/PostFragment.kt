@@ -2,6 +2,7 @@ package com.heyu.zhudeapp.Fragment.post
 
 import android.Manifest
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -12,9 +13,15 @@ import android.provider.MediaStore
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
+import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.ViewModelProvider
@@ -23,6 +30,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.heyu.zhudeapp.activity.CreatePostActivity
+import com.heyu.zhudeapp.adapter.OnCommentInteractionListener
 import com.heyu.zhudeapp.adapter.OnCommentLongClickListener
 import com.heyu.zhudeapp.adapter.OnImageSaveListener
 import com.heyu.zhudeapp.adapter.OnItemLongClickListener
@@ -35,6 +43,7 @@ import com.heyu.zhudeapp.viewmodel.MainViewModel
 import com.heyu.zhudeapp.viewmodel.PostViewModel
 import es.dmoral.toasty.Toasty
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -43,7 +52,7 @@ import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
-    OnCommentLongClickListener {
+    OnCommentLongClickListener, OnCommentInteractionListener {
 
     private var _binding: FragmentPostBinding? = null
     private val binding get() = _binding!!
@@ -54,9 +63,10 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
     private lateinit var postAdapter: PostAdapter
 
     private var imageUrlToSave: String? = null
-    // Variable to hold the post ID from a notification that needs to be scrolled to.
     private var pendingPostIdToScroll: String? = null
+    private var onBackPressedCallback: OnBackPressedCallback? = null
 
+    private var focusedPostId: Long? = null
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -87,16 +97,87 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
         setupFragmentResultListener()
         setupDaysCounter()
         observeNavigation()
+        setupFocusCommentViewListeners()
+        setupKeyboardListener() // The single source of truth for the focus view
 
         // Trigger the initial load of posts.
         loadPosts()
+
+        onBackPressedCallback = object : OnBackPressedCallback(false) { // Initially disabled
+            override fun handleOnBackPressed() {
+                // Simply hide the keyboard. The listener will hide the view.
+                hideKeyboard()
+            }
+        }.also {
+            activity?.onBackPressedDispatcher?.addCallback(viewLifecycleOwner, it)
+        }
     }
 
-    override fun onResume() {
-        super.onResume()
-        // The initial load is now handled in onViewCreated.
-        // Additional onResume logic can be added here if needed.
+    // The Single Source of Truth for Focus View State
+    private fun setupKeyboardListener() {
+        ViewCompat.setOnApplyWindowInsetsListener(requireActivity().window.decorView) { _, insets ->
+            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+
+            if (imeVisible) {
+                // Keyboard is visible: show the view and position it above the keyboard.
+                binding.focusCommentContainer.visibility = View.VISIBLE
+                binding.focusCommentContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                    bottomMargin = imeHeight
+                }
+                onBackPressedCallback?.isEnabled = true
+            } else {
+                // Keyboard is hidden: hide the view, reset its position and state.
+                binding.focusCommentContainer.visibility = View.GONE
+                binding.focusCommentContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                    bottomMargin = 0
+                }
+                focusedPostId = null // Clear post context
+                onBackPressedCallback?.isEnabled = false
+            }
+            insets
+        }
     }
+
+    private fun setupFocusCommentViewListeners() {
+        binding.focusSendButton.setOnClickListener {
+            val commentText = binding.focusCommentInput.text.toString().trim()
+            if (commentText.isNotEmpty() && focusedPostId != null) {
+                val currentUserId = UserManager.getCurrentUserId()
+                viewModel.addComment(focusedPostId!!, commentText, currentUserId)
+                hideKeyboard() // Simply hide the keyboard. The listener does the rest.
+            }
+        }
+
+        binding.focusCommentInput.addTextChangedListener { editable ->
+            focusedPostId?.let { postId ->
+                viewModel.updateCommentDraft(postId, editable.toString())
+            }
+        }
+
+        // Handle "Click outside" to dismiss
+        binding.root.setOnClickListener {
+            binding.focusCommentInput.clearFocus()
+            hideKeyboard()
+        }
+    }
+
+    private fun hideKeyboard() {
+        val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(view?.windowToken, 0)
+    }
+
+    override fun onCommentDraftClicked(post: Post) {
+        // 1. Set the context for the comment
+        focusedPostId = post.id
+        binding.focusCommentInput.setText(viewModel.commentDrafts.value[post.id] ?: "")
+
+        // 2. Request focus and show the keyboard. The listener will handle the UI changes.
+        binding.focusCommentInput.requestFocus()
+        val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.showSoftInput(binding.focusCommentInput, InputMethodManager.SHOW_IMPLICIT)
+    }
+
 
     private fun observeNavigation() {
         viewLifecycleOwner.lifecycleScope.launch {
@@ -155,16 +236,23 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
         val currentUserId = UserManager.getCurrentUserId()
         postAdapter = PostAdapter(
             posts = emptyList(),
+            commentDrafts = emptyMap(),
             lifecycleScope = viewLifecycleOwner.lifecycleScope,
             currentUserId = currentUserId,
             onItemLongClickListener = this,
             onImageSaveListener = this,
-            onCommentLongClickListener = this
+            onCommentLongClickListener = this,
+            onCommentInteractionListener = this // Pass the implementation
         )
         binding.postsRecyclerView.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = postAdapter
-            recycledViewPool.setMaxRecycledViews(0, 0)
+            // Prevent clicks on the RecyclerView from propagating to the root view
+            setOnTouchListener { v, event ->
+                v.parent.requestDisallowInterceptTouchEvent(true)
+                v.onTouchEvent(event)
+                true
+            }
         }
     }
 
@@ -176,7 +264,7 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
 
     private fun observeViewModel() {
         viewModel.posts.observe(viewLifecycleOwner) { posts ->
-            postAdapter.updatePosts(posts)
+            postAdapter.updatePostsAndDrafts(posts, viewModel.commentDrafts.value)
             if (_binding != null) {
                 binding.swipeRefreshLayout.isRefreshing = false
             }
@@ -195,6 +283,13 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
             Toasty.error(requireContext(), error, Toasty.LENGTH_LONG).show()
             if (_binding != null) {
                 binding.swipeRefreshLayout.isRefreshing = false
+            }
+        }
+
+        // Observe draft changes
+        lifecycleScope.launch {
+            viewModel.commentDrafts.collectLatest {
+                postAdapter.updatePostsAndDrafts(viewModel.posts.value ?: emptyList(), it)
             }
         }
     }
@@ -229,9 +324,6 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
     override fun onImageSave(imageUrl: String) {
         this.imageUrlToSave = imageUrl
 
-        // Unified permission check for all relevant Android versions.
-        // For Android 10 (Q) and above, WRITE_EXTERNAL_STORAGE is not strictly needed for saving to app's own collection,
-        // but this unified check simplifies the logic and ensures it works on older devices.
         if (ContextCompat.checkSelfPermission(
                 requireContext(),
                 Manifest.permission.WRITE_EXTERNAL_STORAGE
@@ -242,100 +334,79 @@ class PostFragment : Fragment(), OnItemLongClickListener, OnImageSaveListener,
             requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
     }
-
-    private fun deletePost(post: Post) {
-        lifecycleScope.launch {
-            try {
-                viewModel.deletePost(post)
-                Toasty.success(requireContext(), "删除成功!", Toasty.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toasty.error(requireContext(), "删除失败: ${e.message}", Toasty.LENGTH_LONG).show()
-            }
-        }
+    
+    override fun onCommentDraftChanged(postId: Long, newDraft: String) {
+        viewModel.updateCommentDraft(postId, newDraft)
     }
 
-    private fun deleteComment(comment: Comment) {
-        lifecycleScope.launch {
-            try {
-                viewModel.deleteComment(comment)
-                Toasty.success(requireContext(), "评论已删除", Toasty.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toasty.error(requireContext(), "删除失败: ${e.message}", Toasty.LENGTH_LONG).show()
-            }
-        }
+    override fun onSendCommentClicked(postId: Long, commentText: String) {
+        val currentUserId = UserManager.getCurrentUserId()
+        viewModel.addComment(postId, commentText, currentUserId)
+        viewModel.updateCommentDraft(postId, "") // Clear draft after sending
     }
 
     private fun saveImageToGallery(imageUrl: String) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val context = requireContext()
-                val bitmap = Glide.with(context)
+                val bitmap = Glide.with(requireContext())
                     .asBitmap()
                     .load(imageUrl)
                     .submit()
                     .get()
 
-                val savedUri = saveBitmapToMediaStore(bitmap, "Image_${System.currentTimeMillis()}.jpg")
-
-                withContext(Dispatchers.Main) {
-                    if (savedUri != null) {
-                        Toast.makeText(context, "图片已保存至相册", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, "Image_${System.currentTimeMillis()}.jpg")
+                    put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/ZhuDeApp")
+                        put(MediaStore.MediaColumns.IS_PENDING, 1)
                     }
                 }
+
+                val resolver = requireContext().contentResolver
+                val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+
+                uri?.let {
+                    resolver.openOutputStream(it).use { outputStream ->
+                        if (outputStream == null) {
+                            throw IOException("Failed to get output stream.")
+                        }
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+                    }
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        contentValues.clear()
+                        contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                        resolver.update(it, contentValues, null, null)
+                    }
+                    withContext(Dispatchers.Main) {
+                        Toasty.success(requireContext(), "图片已保存至相册", Toast.LENGTH_SHORT).show()
+                    }
+                } ?: throw IOException("Failed to create new MediaStore record.")
+
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), "保存失败: ${e.message}", Toast.LENGTH_SHORT)
-                        .show()
+                    Toasty.error(requireContext(), "保存失败: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
     }
 
-    private fun saveBitmapToMediaStore(bitmap: Bitmap, displayName: String): Uri? {
-        val context = requireContext()
-        val imageCollection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        } else {
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+    private fun deletePost(post: Post) {
+        lifecycleScope.launch {
+            viewModel.deletePost(post)
         }
+    }
 
-        val contentValues = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
-            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.Images.Media.IS_PENDING, 1)
-            }
+    private fun deleteComment(comment: Comment) {
+        lifecycleScope.launch {
+            viewModel.deleteComment(comment)
         }
-
-        val resolver = context.contentResolver
-        val uri = resolver.insert(imageCollection, contentValues)
-
-        uri?.let { savedUri ->
-            try {
-                resolver.openOutputStream(savedUri)?.use { outputStream ->
-                    if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)) {
-                        throw IOException("Failed to save bitmap.")
-                    }
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    contentValues.clear()
-                    contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
-                    resolver.update(savedUri, contentValues, null, null)
-                }
-                return@let savedUri
-            } catch (e: Exception) {
-                resolver.delete(savedUri, null, null)
-                throw e
-            }
-        }
-        return null
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        binding.postsRecyclerView.adapter = null
+        onBackPressedCallback?.remove() // Clean up the callback
         _binding = null
     }
 }

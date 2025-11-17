@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private val mainViewModel: MainViewModel by viewModels()
     private val userManagementViewModel: UserManagementViewModel by viewModels()
     private lateinit var drawerLayout: DrawerLayout
+    private var currentFragment: Fragment? = null
 
     companion object {
         const val EXTRA_CHANGE_AVATAR_REQUEST = "EXTRA_CHANGE_AVATAR_REQUEST"
@@ -196,8 +197,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        supportFragmentManager.findFragmentByTag(supportFragmentManager.fragments.find { it.isVisible }?.tag)?.let {
-            outState.putString("KEY_CURRENT_FRAGMENT_TAG", it.tag)
+        currentFragment?.tag?.let {
+            outState.putString("KEY_CURRENT_FRAGMENT_TAG", it)
         }
     }
 
@@ -220,19 +221,21 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private fun showFragment(fragmentClass: Class<out Fragment>) {
         val fragmentTag = fragmentClass.name
         val fragmentManager = supportFragmentManager
-        var fragment = fragmentManager.findFragmentByTag(fragmentTag)
-
         val transaction = fragmentManager.beginTransaction()
 
-        // Hide the current visible fragment
-        fragmentManager.fragments.find { it.isVisible }?.let { transaction.hide(it) }
+        var targetFragment = fragmentManager.findFragmentByTag(fragmentTag)
 
-        if (fragment == null) {
-            fragment = fragmentClass.newInstance()
-            transaction.add(binding.fragmentContainerView.id, fragment, fragmentTag)
-        } else {
-            transaction.show(fragment)
+        if (targetFragment == null) {
+            targetFragment = fragmentClass.newInstance()
+            transaction.add(binding.fragmentContainerView.id, targetFragment, fragmentTag)
         }
+
+        if (currentFragment != null && currentFragment != targetFragment) {
+            transaction.hide(currentFragment!!)
+        }
+
+        transaction.show(targetFragment!!)
+        currentFragment = targetFragment
 
         transaction.commit()
     }

@@ -18,7 +18,7 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="5dp">
+            android:padding="2dp">
 
             <TextView
                 android:id="@+id/days_prefix_text_view"
@@ -80,5 +80,44 @@
         android:layout_margin="16dp"
         android:contentDescription="发布新动态"
         android:src="@android:drawable/ic_input_add" />
+
+    <!-- Focus Comment Input View -->
+    <LinearLayout
+        android:id="@+id/focus_comment_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="?attr/colorSurface"
+        android:elevation="8dp"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <EditText
+            android:id="@+id/focus_comment_input"
+            android:layout_width="0dp"
+            android:layout_height="200dp"
+            android:layout_gravity="center_vertical"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:hint="发布一条友善的评论吧"
+            android:inputType="textMultiLine"
+            android:maxLines="5"
+            android:minHeight="48dp" />
+
+        <ImageButton
+            android:id="@+id/focus_send_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="bottom"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="发送"
+            android:src="@android:drawable/ic_menu_send" />
+    </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
