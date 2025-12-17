@@ -2,6 +2,7 @@ package com.heyu.zhudeapp.activity
 
 import android.net.Uri
 import android.os.Bundle
+import android.telephony.SmsManager
 import android.view.MenuItem
 import android.view.View
 import androidx.activity.result.PickVisualMediaRequest
@@ -73,7 +74,7 @@ class CreatePostActivity : AppCompatActivity() {
     private fun setupClickListeners() {
         binding.addImageButton.setOnClickListener {
             // Launch the modern photo picker.
-            pickMultipleMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            pickMultipleMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
         }
 
         binding.publishButton.setOnClickListener {
@@ -94,7 +95,7 @@ class CreatePostActivity : AppCompatActivity() {
             renderState(UiState.Loading)
             try {
                 val imageUrls = uploadImages()
-                SupabaseModule.createPost(content, imageUrls, userId)
+                SupabaseModule.createPost(content, imageUrls, userId!!)
                 renderState(UiState.Success)
             } catch (e: Exception) {
                 renderState(UiState.Error(e.localizedMessage ?: getString(R.string.unknown_error)))
@@ -106,15 +107,27 @@ class CreatePostActivity : AppCompatActivity() {
         if (selectedImageUris.isNotEmpty()) {
             selectedImageUris.map { uri ->
                 async {
-                    val imageBytes = SupabaseModule.compressImage(this@CreatePostActivity, uri)
-                    val fileName = "${UUID.randomUUID()}.jpg"
-                    SupabaseModule.uploadPostImage(imageBytes, fileName)
+                    val mimeType = contentResolver.getType(uri)
+                    val isVideo = mimeType?.startsWith("video/") == true
+
+                    val fileExtension = if (isVideo) "mp4" else "jpg"
+
+                    val fileBytes = if (isVideo) {
+                        contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                            ?: throw IllegalArgumentException("Failed to read video file")
+                    } else {
+                        SupabaseModule.compressImage(this@CreatePostActivity, uri)
+                    }
+
+                    val fileName = "${UUID.randomUUID()}.$fileExtension"
+                    SupabaseModule.uploadPostImage(fileBytes, fileName)
                 }
             }.awaitAll()
         } else {
             emptyList()
         }
     }
+
 
     private fun renderState(state: UiState) {
         when (state) {
@@ -126,6 +139,24 @@ class CreatePostActivity : AppCompatActivity() {
                 binding.loadingIndicator.visibility = View.GONE
                 setInputsEnabled(true)
                 Toasty.success(this, getString(R.string.publish_success)).show()
+
+                // Send SMS notification
+                try {
+                    val otherUserPhoneNumber = UserManager.getOtherUserPhoneNumber()
+                    val currentUserName = UserManager.getCurrentUserName()
+                    if (otherUserPhoneNumber != null && currentUserName != null) {
+                        val smsManager: SmsManager = this.getSystemService(SmsManager::class.java)
+                        val message = "$currentUserName 发布新动态了，快滚进来看！"
+                        smsManager.sendTextMessage(otherUserPhoneNumber, null, message, null, null)
+                    } else {
+                        Toasty.warning(this, "未找到用户信息，无法发送通知").show()
+                    }
+                } catch (e: SecurityException) {
+                    Toasty.error(this, "发送通知失败: 没有权限").show()
+                } catch (e: Exception) {
+                    Toasty.error(this, "发送通知失败: ${e.message}").show()
+                }
+
                 finish()
             }
             is UiState.Error -> {

@@ -111,7 +111,7 @@ class CommentsFragment : BottomSheetDialogFragment() {
                 val newCommentForDb = Comment(
                     postId = post.id,
                     content = text,
-                    userId = userId
+                    userId = userId!!
                 )
 
                 // Insert the comment into the database

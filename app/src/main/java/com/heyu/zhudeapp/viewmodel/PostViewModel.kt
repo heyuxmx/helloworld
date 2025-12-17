@@ -20,6 +20,9 @@ class PostViewModel : ViewModel() {
     private val _error = MutableLiveData<String>()
     val error: LiveData<String> = _error
 
+    private val _postCreationSuccess = MutableLiveData<Boolean>()
+    val postCreationSuccess: LiveData<Boolean> = _postCreationSuccess
+
     // --- Comment Draft Management ---
     private val _commentDrafts = MutableStateFlow<Map<Long, String>>(emptyMap())
     val commentDrafts = _commentDrafts.asStateFlow()
@@ -36,6 +39,10 @@ class PostViewModel : ViewModel() {
         _commentDrafts.value = newDrafts
     }
     // --------------------------------
+
+    fun doneNotifyingSms() {
+        _postCreationSuccess.postValue(false)
+    }
 
     fun fetchPosts() {
         viewModelScope.launch {
@@ -65,6 +72,7 @@ class PostViewModel : ViewModel() {
             try {
                 SupabaseModule.createPost(content, emptyList(), userId)
                 fetchPosts()
+                _postCreationSuccess.postValue(true)
             } catch (e: Exception) {
                 _error.postValue("创建动态失败: ${e.message}")
             }
@@ -78,6 +86,7 @@ class PostViewModel : ViewModel() {
                 val imageUrl = SupabaseModule.uploadPostImage(imageBytes, fileName)
                 SupabaseModule.createPost(content, listOf(imageUrl), userId)
                 fetchPosts()
+                _postCreationSuccess.postValue(true)
             } catch (e: Exception) {
                 _error.postValue("创建动态失败: ${e.message}")
             }

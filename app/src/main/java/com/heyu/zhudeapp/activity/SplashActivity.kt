@@ -1,35 +1,22 @@
 package com.heyu.zhudeapp.activity
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
-import android.os.CountDownTimer
-import androidx.activity.enableEdgeToEdge
+import android.os.Handler
+import android.os.Looper
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.heyu.zhudeapp.R
 
+@SuppressLint("CustomSplashScreen")
 class SplashActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContentView(R.layout.activity_splash)
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
-        }
-        countDown()//开始倒计时
-    }
 
-    private fun countDown() {
-        val timer = object : CountDownTimer(1500, 1000) {
-            override fun onTick(millisUntilFinished: Long) {}
-            override fun onFinish() {
-                //跳转到MainActivity
-                finish()
-                startActivity(Intent(this@SplashActivity, MainActivity::class.java))
-            }
-            }.start()
+        Handler(Looper.getMainLooper()).postDelayed({
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+        }, 1000) // 1-second delay
     }
 }

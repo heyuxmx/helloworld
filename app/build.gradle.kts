@@ -1,25 +1,34 @@
+
+
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.ksp)
+    id("kotlin-parcelize")
     alias(libs.plugins.kotlin.serialization)
-    id("kotlin-parcelize") // Add this line
-    // Apply the Google Services plugin
     id("com.google.gms.google-services")
+}
+
+// Read keystore properties
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
     namespace = "com.heyu.zhudeapp"
-    compileSdk = 36
+    compileSdk = 34
 
     signingConfigs {
         create("release") {
-            val releaseStoreFile = project.findProperty("RELEASE_STORE_FILE")
-            if (releaseStoreFile != null) {
-                storeFile = file(releaseStoreFile)
-                storePassword = project.findProperty("RELEASE_STORE_PASSWORD") as String?
-                keyAlias = project.findProperty("RELEASE_KEY_ALIAS") as String?
-                keyPassword = project.findProperty("RELEASE_KEY_PASSWORD") as String?
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
             }
         }
     }
@@ -27,16 +36,20 @@ android {
     defaultConfig {
         applicationId = "com.heyu.zhudeapp"
         minSdk = 24
-        targetSdk = 36
-        versionCode = 4
-        versionName = "1.0.3"
-
+        targetSdk = 34
+        versionCode = 6
+        versionName = "1.0.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables {
+            useSupportLibrary = true
+        }
+        buildConfigField("String", "UPDATE_JSON_URL", "\"https://bvgtzgxscnqhugjirgzp.supabase.co/storage/v1/object/public/app-releases/update-check_xiaogao.json\"")
+        buildConfigField("String", "XIAOXU_ID", "\"xiaoxu_placeholder_id\"")
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -44,86 +57,62 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
-
-    // 1. Define a flavor dimension to group your flavors
-    flavorDimensions += "version"
-
-    // 2. Define your two product flavors
-    productFlavors {
-        create("xiaogao") {
-            dimension = "version"
-            buildConfigField("String", "AVATAR_IDENTIFIER", "\"ic_launcher\"")
-            buildConfigField("String", "USER_ID", "\"12345\"")
-            buildConfigField("String", "UPDATE_JSON_URL", "\"https://bvgtzgxscnqhugjirgzp.supabase.co/storage/v1/object/public/app-releases/update-check_xiaogao.json\"")
-        }
-        
-        create("xiaoxu") {
-            dimension = "version"
-            buildConfigField("String", "AVATAR_IDENTIFIER", "\"ic_launcher\"")
-            buildConfigField("String", "USER_ID", "\"67890\"")
-            buildConfigField("String", "UPDATE_JSON_URL", "\"https://bvgtzgxscnqhugjirgzp.supabase.co/storage/v1/object/public/app-releases/update-check_xiaoxu.json\"")
-        }
-    }
-
     compileOptions {
-        // ADD THIS LINE TO ENABLE CORE LIBRARY DESUGARING
-        isCoreLibraryDesugaringEnabled = true
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
     buildFeatures {
+        compose = false
         viewBinding = true
         buildConfig = true
     }
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+
+}
+
+configurations.all {
+    exclude(group = "androidx.profileinstaller", module = "profileinstaller")
 }
 
 dependencies {
-
-    // ADD THIS DEPENDENCY FOR CORE LIBRARY DESUGARING
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
-
-    implementation(libs.androidx.core.ktx)
-    // Replaced libs alias with a direct dependency to ensure it resolves correctly.
-    implementation("androidx.fragment:fragment-ktx:1.7.1")
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
-    implementation(libs.androidx.activity)
-    implementation(libs.androidx.constraintlayout)
-    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    implementation(libs.glide)//Glide
-    implementation(libs.toasty)//Toasty
-    implementation(libs.lottie)//lottie
-
-    // Firebase
-    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
-    implementation("com.google.firebase:firebase-common-ktx")
-    implementation("com.google.firebase:firebase-messaging-ktx")
-    implementation("com.google.firebase:firebase-analytics-ktx")
-
-    // Kotlinx Serialization
-    implementation(libs.kotlinx.serialization.json)
-
-    // Supabase
     implementation(platform("io.github.jan-tennert.supabase:bom:2.5.3"))
-    implementation("io.github.jan-tennert.supabase:postgrest-kt")
-    implementation("io.github.jan-tennert.supabase:storage-kt")
-
-    // Ktor - Explicitly use a version compatible with Supabase BOM 2.5.3
-    implementation("io.ktor:ktor-client-android:2.3.11")
-    implementation("io.ktor:ktor-client-content-negotiation:2.3.11")
-
-    implementation(libs.photoview)
-    implementation("com.vanniktech:android-image-cropper:4.5.0")
-    implementation("de.hdodenhof:circleimageview:3.1.0")
-
-    // Android Navigation Component
+    implementation("androidx.core:core-ktx:1.13.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     implementation("androidx.navigation:navigation-fragment-ktx:2.7.7")
     implementation("androidx.navigation:navigation-ui-ktx:2.7.7")
-
+    implementation("com.google.firebase:firebase-storage-ktx:21.0.0")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    implementation("io.github.jan-tennert.supabase:postgrest-kt")
+    implementation("io.github.jan-tennert.supabase:storage-kt")
+    implementation("io.ktor:ktor-client-android:2.3.11")
+    implementation("io.ktor:ktor-client-content-negotiation:2.3.11")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.11")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    implementation(platform("com.google.firebase:firebase-bom:33.0.0"))
+    implementation("com.google.firebase:firebase-analytics-ktx")
+    implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-inappmessaging-display-ktx")
+    implementation("com.github.GrenderG:Toasty:1.5.2")
+    implementation("com.airbnb.android:lottie:6.4.0")
+    implementation("androidx.fragment:fragment-ktx:1.6.2")
+    implementation("androidx.activity:activity-ktx:1.9.0")
+    implementation("com.vanniktech:android-image-cropper:4.5.0")
+    implementation("com.github.chrisbanes:PhotoView:2.3.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("de.hdodenhof:circleimageview:3.1.0")
 }

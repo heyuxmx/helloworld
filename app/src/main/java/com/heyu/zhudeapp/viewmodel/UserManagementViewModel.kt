@@ -28,13 +28,10 @@ class UserManagementViewModel(application: Application) : AndroidViewModel(appli
             UserManager.getCurrentUser()
                 .catch { e ->
                     _error.postValue("Failed to fetch current user: ${e.message}")
+                    _currentUser.postValue(null)
                 }
                 .collect { user ->
-                    if (user != null) {
-                        _currentUser.postValue(user)
-                    } else {
-                        _error.postValue("Current user could not be determined for this app version.")
-                    }
+                    _currentUser.postValue(user)
                 }
         }
     }
@@ -62,6 +59,13 @@ class UserManagementViewModel(application: Application) : AndroidViewModel(appli
             } catch (e: Exception) {
                 _error.postValue("Failed to update username: ${e.message}")
             }
+        }
+    }
+
+    fun switchUser(userName: String) {
+        viewModelScope.launch {
+            UserManager.setCurrentUser(userName)
+            fetchCurrentUser()
         }
     }
 

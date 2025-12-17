@@ -19,3 +19,29 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+
+# --- Comprehensive rules for libraries that use reflection ---
+
+# Keep Ktor, Supabase, and their dependencies (SLF4J, Kotlinx Serialization, Coroutines) from being removed by R8.
+# These libraries use reflection, which can confuse the code shrinker.
+
+-keep class org.slf4j.** { *; }
+-dontwarn org.slf4j.**
+
+-keepattributes *Annotation*,Signature
+-keepclassmembers class ** {
+    @kotlinx.serialization.Serializable <fields>;
+    @kotlinx.serialization.Transient <fields>;
+}
+-keep class **$$*Serializer { *; }
+-keep class * implements kotlinx.serialization.KSerializer { *; }
+-keep class kotlinx.serialization.internal.** { *; }
+-dontwarn kotlinx.serialization.**
+
+-keepclassmembers class kotlin.coroutines.jvm.internal.BaseContinuationImpl {
+    private java.lang.Object[] getStackTrace();
+}
+
+-keep class io.ktor.client.engine.android.** { *; }
+-dontwarn io.ktor.**

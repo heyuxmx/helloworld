@@ -15,9 +15,11 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -114,31 +116,58 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         }
     }
 
-    // The Single Source of Truth for Focus View State
     private fun setupKeyboardListener() {
-        ViewCompat.setOnApplyWindowInsetsListener(requireActivity().window.decorView) { _, insets ->
-            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+        // Use the root view of the fragment for the listener.
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
+            val imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime())
+            val imeHeight = windowInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val navBarHeight = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
+
+            // The actual margin needed is the keyboard height MINUS the nav bar height.
+            // This is because the IME inset often includes the navigation bar.
+            // We use coerceAtLeast(0) to prevent negative margins during transitions.
+            val newBottomMargin = if (imeVisible) (imeHeight - 3*navBarHeight).coerceAtLeast(0) else 0
+
+            binding.focusCommentContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                bottomMargin = newBottomMargin
+            }
 
             if (imeVisible) {
-                // Keyboard is visible: show the view and position it above the keyboard.
                 binding.focusCommentContainer.visibility = View.VISIBLE
-                binding.focusCommentContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-                    bottomMargin = imeHeight
-                }
                 onBackPressedCallback?.isEnabled = true
-            } else {
-                // Keyboard is hidden: hide the view, reset its position and state.
-                binding.focusCommentContainer.visibility = View.GONE
-                binding.focusCommentContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-                    bottomMargin = 0
+
+                // When the comment box is visible, add padding to the recycler view
+                // so the last item can scroll above it.
+                // We post it to make sure the view has a measured height.
+                binding.focusCommentContainer.post {
+                    binding.postsRecyclerView.updatePadding(bottom = binding.focusCommentContainer.height)
                 }
-                focusedPostId = null // Clear post context
+            } else {
+                binding.focusCommentContainer.visibility = View.GONE
                 onBackPressedCallback?.isEnabled = false
+                focusedPostId = null
+
+                // Reset recycler view padding
+                binding.postsRecyclerView.updatePadding(bottom = 0)
             }
-            insets
+
+            // Also, apply padding for the status bar at the top of the list.
+            val systemBarInsets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            binding.swipeRefreshLayout.updatePadding(
+                top = systemBarInsets.top,
+                left = systemBarInsets.left,
+                right = systemBarInsets.right
+            )
+
+            // CRUCIAL: We consume the IME insets.
+            // This tells the system "We have handled the keyboard in this branch of the view hierarchy".
+            WindowInsetsCompat.Builder(windowInsets).setInsets(
+                WindowInsetsCompat.Type.ime(),
+                Insets.of(0, 0, 0, 0)
+            ).build()
         }
     }
+
 
     private fun setupFocusCommentViewListeners() {
         binding.focusSendButton.setOnClickListener {
@@ -146,7 +175,7 @@ class PostFragment : Fragment(), OnItemLongClickListener,
             val postId = focusedPostId // Capture the ID before it's nulled by hideKeyboard
             if (commentText.isNotEmpty() && postId != null) {
                 val currentUserId = UserManager.getCurrentUserId()
-                viewModel.addComment(postId, commentText, currentUserId)
+                viewModel.addComment(postId, commentText, currentUserId!!)
                 viewModel.updateCommentDraft(postId, "") // THE FIX: Clear the draft
                 hideKeyboard() // Now, everything is done, hide the UI.
             }
@@ -249,7 +278,7 @@ class PostFragment : Fragment(), OnItemLongClickListener,
             if (confirmed) {
                 val postJson = bundle.getString(DeleteConfirmationDialogFragment.BUNDLE_KEY_POST)
                 postJson?.let {
-                    val post = Json.Default.decodeFromString<Post>(it)
+                    val post = Json.Default.decodeFromString<Post>(it!!)
                     deletePost(post)
                 }
             }
@@ -262,7 +291,7 @@ class PostFragment : Fragment(), OnItemLongClickListener,
             posts = emptyList(),
             commentDrafts = emptyMap(),
             lifecycleScope = viewLifecycleOwner.lifecycleScope,
-            currentUserId = currentUserId,
+            currentUserId = currentUserId ?: "",
             onItemLongClickListener = this,
             onImageSaveListener = this,
             onCommentLongClickListener = this,
@@ -282,7 +311,7 @@ class PostFragment : Fragment(), OnItemLongClickListener,
 
     private fun observeViewModel() {
         viewModel.posts.observe(viewLifecycleOwner) { posts ->
-            postAdapter.updatePostsAndDrafts(posts, viewModel.commentDrafts.value)
+            postAdapter.updatePostsAndDrafts(posts, viewModel.commentDrafts.value?.mapValues { it.value ?: "" } ?: emptyMap())
             if (_binding != null) {
                 binding.swipeRefreshLayout.isRefreshing = false
             }
@@ -307,7 +336,7 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         // Observe draft changes
         lifecycleScope.launch {
             viewModel.commentDrafts.collectLatest { drafts ->
-                postAdapter.updatePostsAndDrafts(viewModel.posts.value ?: emptyList(), drafts)
+                postAdapter.updatePostsAndDrafts(viewModel.posts.value ?: emptyList(), drafts?.mapValues { it.value ?: "" } ?: emptyMap())
             }
         }
     }

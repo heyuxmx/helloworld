@@ -1,5 +1,6 @@
 package com.heyu.zhudeapp.activity
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -7,6 +8,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
@@ -16,7 +18,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -29,11 +37,12 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.navigation.NavigationView
 import com.heyu.zhudeapp.BuildConfig
 import com.heyu.zhudeapp.Fragment.countdown.DatecountFragment
-import com.heyu.zhudeapp.Fragment.welcome.MineFragment
 import com.heyu.zhudeapp.Fragment.post.PostFragment
+import com.heyu.zhudeapp.Fragment.welcome.MineFragment
 import com.heyu.zhudeapp.Fragment.welcome.WelcomeFragment
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.data.UpdateInfo
+import com.heyu.zhudeapp.data.UserProfile
 import com.heyu.zhudeapp.databinding.ActivityMainBinding
 import com.heyu.zhudeapp.viewmodel.MainViewModel
 import com.heyu.zhudeapp.viewmodel.UserManagementViewModel
@@ -44,7 +53,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-
 
 class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
     private lateinit var binding: ActivityMainBinding
@@ -57,9 +65,15 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         const val EXTRA_CHANGE_AVATAR_REQUEST = "EXTRA_CHANGE_AVATAR_REQUEST"
     }
 
+    private val requestPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+            if (!isGranted) {
+                Toast.makeText(this, "发送短信的权限对于通知功能至关重要", Toast.LENGTH_LONG).show()
+            }
+        }
+
     private val imageViewerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data?.getBooleanExtra(EXTRA_CHANGE_AVATAR_REQUEST, false) == true) {
-            // User has requested to change avatar from the viewer, now launch the cropper.
             val cropOptions = CropImageOptions(
                 guidelines = CropImageView.Guidelines.ON,
                 cropShape = CropImageView.CropShape.OVAL,
@@ -84,14 +98,20 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        setSupportActionBar(binding.toolbar)
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            binding.toolbar.updateLayoutParams<ViewGroup.MarginLayoutParams> { topMargin = insets.top }
+            binding.bottomNavigation.updatePadding(bottom = insets.bottom)
+            windowInsets
+        }
 
+        setSupportActionBar(binding.toolbar)
         drawerLayout = binding.drawerLayout
 
         val onBackPressedCallback = object : OnBackPressedCallback(false) {
@@ -116,69 +136,107 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         binding.bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.tab_first -> showFragment(WelcomeFragment::class.java)
                 R.id.tab_second -> showFragment(PostFragment::class.java)
                 R.id.tab_third -> showFragment(DatecountFragment::class.java)
                 R.id.tab_fourth -> showFragment(MineFragment::class.java)
-                else -> return@setOnItemSelectedListener false
+                else -> showFragment(WelcomeFragment::class.java) // Default to WelcomeFragment
             }
             true
         }
 
-        // getAndSaveFcmToken(BuildConfig.USER_ID)
-
         if (savedInstanceState == null) {
-            binding.bottomNavigation.selectedItemId = R.id.tab_first
+            showFragment(WelcomeFragment::class.java)
         }
 
+        userManagementViewModel.currentUser.observe(this) { user ->
+            if (user?.username.isNullOrEmpty()) {
+                showUserSelectionDialog()
+            }
+            updateNavHeader(user)
+        }
+        userManagementViewModel.fetchCurrentUser()
+
         handleIntent(intent)
-
-
         supportFragmentManager.setFragmentResultListener("profile_updated", this) { _, _ ->
-            userManagementViewModel.fetchCurrentUser() // Re-fetch to update nav header
+            userManagementViewModel.fetchCurrentUser()
             Toast.makeText(this, "用户资料已更新", Toast.LENGTH_SHORT).show()
         }
 
-        setupNavHeader()
-        checkForUpdates() // Check for updates on startup
+        checkForUpdates()
+        requestSmsPermission()
     }
 
-    private fun setupNavHeader() {
+    private fun requestSmsPermission() {
+        when {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.SEND_SMS
+            ) == PackageManager.PERMISSION_GRANTED -> {
+                // Permission is already granted.
+            }
+            shouldShowRequestPermissionRationale(Manifest.permission.SEND_SMS) -> {
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("需要权限")
+                    .setMessage("此应用需要发送短信的权限来通知对方用户。")
+                    .setPositiveButton("好的") { _, _ ->
+                        requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+                    }
+                    .show()
+            }
+            else -> {
+                requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+            }
+        }
+    }
+
+    private fun showUserSelectionDialog() {
+        val users = arrayOf("高猪猪", "徐大王")
+        MaterialAlertDialogBuilder(this)
+            .setTitle("请选择你的身份")
+            .setItems(users) { _, which ->
+                val selectedUser = users[which]
+                userManagementViewModel.switchUser(selectedUser)
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun updateNavHeader(user: UserProfile?) {
         val headerView = binding.navView.getHeaderView(0)
         val navUsername = headerView.findViewById<TextView>(R.id.nav_header_username)
         val navProfileImage = headerView.findViewById<CircleImageView>(R.id.nav_header_profile_image)
         val editUsernameButton = headerView.findViewById<ImageButton>(R.id.edit_username_button)
 
-        userManagementViewModel.currentUser.observe(this) { user ->
-            user?.let { userProfile ->
-                navUsername.text = userProfile.username
-                Glide.with(this)
-                    .load(userProfile.avatarUrl)
-                    .placeholder(R.drawable.ic_default_avatar)
-                    .error(R.drawable.ic_default_avatar)
-                    .into(navProfileImage)
+        user?.let { userProfile ->
+            navUsername.text = userProfile.username
+            Glide.with(this)
+                .load(userProfile.avatarUrl)
+                .placeholder(R.drawable.ic_default_avatar)
+                .error(R.drawable.ic_default_avatar)
+                .into(navProfileImage)
 
-                navProfileImage.setOnClickListener {
-                    val intent = Intent(this, ProfileActivity::class.java).apply {
-                        putExtra(ProfileActivity.EXTRA_IMAGE_URL, userProfile.avatarUrl)
-                    }
-                    imageViewerLauncher.launch(intent)
+            navProfileImage.setOnClickListener {
+                val intent = Intent(this, ProfileActivity::class.java).apply {
+                    putExtra(ProfileActivity.EXTRA_IMAGE_URL, userProfile.avatarUrl)
                 }
+                imageViewerLauncher.launch(intent)
+            }
 
-                editUsernameButton.setOnClickListener {
-                    userProfile.username?.let { currentUsername ->
-                        showEditUsernameDialog(currentUsername)
-                    }
+            editUsernameButton.setOnClickListener {
+                userProfile.username?.let { currentUsername ->
+                    showEditUsernameDialog(currentUsername)
                 }
             }
+        } ?: run {
+            navUsername.text = "未登录"
+            navProfileImage.setImageResource(R.drawable.ic_default_avatar)
+            navProfileImage.setOnClickListener(null)
+            editUsernameButton.setOnClickListener(null)
         }
-        userManagementViewModel.fetchCurrentUser()
     }
 
     private fun showEditUsernameDialog(currentUsername: String) {
-        val editText = EditText(this).apply {
-            setText(currentUsername)
-        }
+        val editText = EditText(this).apply { setText(currentUsername) }
 
         MaterialAlertDialogBuilder(this)
             .setTitle("修改用户名")
@@ -197,14 +255,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        currentFragment?.tag?.let {
-            outState.putString("KEY_CURRENT_FRAGMENT_TAG", it)
-        }
+        currentFragment?.tag?.let { outState.putString("KEY_CURRENT_FRAGMENT_TAG", it) }
     }
-
-    // private fun getAndSaveFcmToken(userId: String) {
-    //     // ... (FCM token logic remains the same)
-    // }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -212,80 +264,56 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         handleIntent(intent)
     }
 
-
-
-    private fun handleIntent(intent: Intent?) {
-        // ... (handleIntent logic remains the same)
-    }
+    private fun handleIntent(intent: Intent?) {}
 
     private fun showFragment(fragmentClass: Class<out Fragment>) {
         val fragmentTag = fragmentClass.name
         val fragmentManager = supportFragmentManager
         val transaction = fragmentManager.beginTransaction()
 
-        var targetFragment = fragmentManager.findFragmentByTag(fragmentTag)
+        currentFragment?.let { transaction.hide(it) }
 
-        if (targetFragment == null) {
-            targetFragment = fragmentClass.newInstance()
-            transaction.add(binding.fragmentContainerView.id, targetFragment, fragmentTag)
-        }
+        val targetFragment = fragmentManager.findFragmentByTag(fragmentTag)
+            ?: fragmentClass.newInstance().also {
+                transaction.add(binding.fragmentContainerView.id, it, fragmentTag)
+            }
 
-        if (currentFragment != null && currentFragment != targetFragment) {
-            transaction.hide(currentFragment!!)
-        }
-
-        transaction.show(targetFragment!!)
+        transaction.show(targetFragment)
         currentFragment = targetFragment
 
         transaction.commit()
     }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        // Handle navigation view item clicks here.
         when (item.itemId) {
-            R.id.nav_home -> {
-                // Handle the home action
-            }
-            R.id.nav_settings -> {
-                // Handle the settings action
-            }
+            R.id.nav_home -> {}
+            R.id.nav_settings -> {}
         }
         drawerLayout.closeDrawer(GravityCompat.START)
         return true
     }
-    
+
     private fun checkForUpdates() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Get the current version code of the app.
                 val currentVersionCode = try {
                     val packageInfo = packageManager.getPackageInfo(packageName, 0)
                     packageInfo.versionCode
-                } catch (e: PackageManager.NameNotFoundException) {
-                    -1
-                }
+                } catch (e: PackageManager.NameNotFoundException) { -1 }
 
-                if (currentVersionCode == -1) return@launch // Cannot get current version, so exit.
+                if (currentVersionCode == -1) return@launch
 
-                // Initialize the Ktor client and fetch the update info.
                 val client = io.ktor.client.HttpClient(io.ktor.client.engine.android.Android)
-                // Use the URL from BuildConfig, which is specific to the product flavor.
                 val response: io.ktor.client.statement.HttpResponse = client.get(BuildConfig.UPDATE_JSON_URL)
                 val jsonString = response.bodyAsText()
                 client.close()
 
                 val updateInfo = Json.decodeFromString<UpdateInfo>(jsonString)
 
-                // If the server version is greater than the current version, show the update dialog.
                 if (updateInfo.latestVersionCode > currentVersionCode) {
-                    withContext(Dispatchers.Main) {
-                        showUpdateDialog(updateInfo.downloadUrl)
-                    }
+                    withContext(Dispatchers.Main) { showUpdateDialog(updateInfo.downloadUrl) }
                 }
             } catch (e: Exception) {
-                // For debugging, show a Toast message with the error.
-                // In a final production version, you might want to log this to a remote service
-                // or handle it silently, but for now, we need to see what's wrong.
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, "检查更新失败: ${e.message}", Toast.LENGTH_LONG).show()
                 }
@@ -297,13 +325,13 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private fun showUpdateDialog(downloadUrl: String) {
         MaterialAlertDialogBuilder(this)
             .setTitle("发现新版本")
-            .setMessage("更新到最新版本以获得更好的体验。")
+            .setMessage("不更新你就是🐖中🐖")
             .setPositiveButton("立即更新") { _, _ ->
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl))
                 startActivity(intent)
             }
-            .setNegativeButton("稍后", null)
-            .setCancelable(false) // Force the user to make a choice.
+            .setNegativeButton("我是猪", null)
+            .setCancelable(false)
             .show()
     }
 }
