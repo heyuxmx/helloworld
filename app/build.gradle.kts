@@ -1,5 +1,4 @@
 
-
 import java.util.Properties
 import java.io.FileInputStream
 
@@ -115,4 +114,7 @@ dependencies {
     implementation("com.github.chrisbanes:PhotoView:2.3.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("de.hdodenhof:circleimageview:3.1.0")
+    
+    // Video Transcoding Library
+    implementation("com.otaliastudios:transcoder:0.10.5")
 }

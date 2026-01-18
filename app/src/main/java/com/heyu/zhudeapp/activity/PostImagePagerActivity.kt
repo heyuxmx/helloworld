@@ -43,10 +43,14 @@ class PostImagePagerActivity : AppCompatActivity() {
                 lastPlayedViewHolder = null // Reset
 
                 // 2. Start the new video if the current page is a video
-                val currentViewHolder = (binding.imagePager.getChildAt(0) as RecyclerView).findViewHolderForAdapterPosition(position)
+                val recyclerView = binding.imagePager.getChildAt(0) as? RecyclerView
+                val currentViewHolder = recyclerView?.findViewHolderForAdapterPosition(position)
                 if (currentViewHolder is ImagePagerAdapter.VideoPagerViewHolder) {
-                    currentViewHolder.playVideo()
-                    lastPlayedViewHolder = currentViewHolder
+                    // Delay slightly to allow video to prepare
+                    binding.root.postDelayed({
+                        currentViewHolder.playVideo()
+                        lastPlayedViewHolder = currentViewHolder
+                    }, 300) // Small delay to allow preparation
                 }
             }
         })
@@ -56,11 +60,16 @@ class PostImagePagerActivity : AppCompatActivity() {
         binding.pagerCounter.text = initialCounterText
 
         // Auto-play the first video if the initial item is a video
+        // But only after the video is prepared to avoid delays
         binding.imagePager.post {
-            val initialViewHolder = (binding.imagePager.getChildAt(0) as RecyclerView).findViewHolderForAdapterPosition(currentPosition)
+            val recyclerView = binding.imagePager.getChildAt(0) as? RecyclerView
+            val initialViewHolder = recyclerView?.findViewHolderForAdapterPosition(currentPosition)
             if (initialViewHolder is ImagePagerAdapter.VideoPagerViewHolder) {
-                initialViewHolder.playVideo()
-                lastPlayedViewHolder = initialViewHolder
+                // Delay slightly to allow video to prepare
+                binding.root.postDelayed({
+                    initialViewHolder.playVideo()
+                    lastPlayedViewHolder = initialViewHolder
+                }, 300) // Small delay to allow initial preparation
             }
         }
     }

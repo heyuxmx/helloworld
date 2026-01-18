@@ -496,4 +496,35 @@ object SupabaseModule {
 
         return outputStream.toByteArray()
     }
+    
+    /**
+     * 优化的视频上传函数，支持大文件上传
+     *
+     * @param videoBytes 视频的字节数组
+     * @param fileName 包含扩展名的完整文件名 (例如, "some-uuid.mp4")
+     * @return 上传成功后视频的公开访问URL
+     */
+    suspend fun uploadPostVideo(videoBytes: ByteArray, fileName: String): String {
+        try {
+            // 直接使用传入的文件名进行上传
+            // 对于大文件上传，可能需要更长的时间
+            supabase.storage
+                .from(POST_IMAGES_BUCKET)  // 使用相同的存储桶
+                .upload(
+                    path = fileName,
+                    data = videoBytes, // 直接传递字节数组
+                    upsert = false
+                )
+
+            // 获取并返回上传后文件的公开URL
+            return supabase.storage.from(POST_IMAGES_BUCKET).publicUrl(fileName)
+        } catch (e: Exception) {
+            Log.e(TAG, "视频上传失败: ${e.message}", e)
+            // 尝试提供更多关于错误的信息
+            if (e.message?.contains("timeout") == true) {
+                Log.e(TAG, "上传超时，请尝试较小的视频文件")
+            }
+            throw e
+        }
+    }
 }
