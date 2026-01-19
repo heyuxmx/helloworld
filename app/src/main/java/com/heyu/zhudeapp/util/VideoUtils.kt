@@ -51,7 +51,7 @@ object VideoUtils {
     }
 
     /**
-     * 极度压缩算法：确保文件在 10MB 左右，防止 Supabase 报错
+     * 视频压缩算法：确保文件在 40MB 以内，满足 Supabase 50MB 限制
      */
     suspend fun compressVideoIfNeeded(
         context: Context, 
@@ -59,14 +59,14 @@ object VideoUtils {
         onProgress: (Int) -> Unit = {}
     ): Uri {
         val fileSize = getVideoFileSize(context, inputUri)
-        // 如果视频小于 10MB，直接跳过压缩以节省时间
-        if (fileSize in 1..10_000_000L) return inputUri
+        // 如果视频小于 40MB，直接跳过压缩以节省时间
+        if (fileSize in 1..40_000_000L) return inputUri
 
         val durationMs = getVideoDuration(context, inputUri)
         if (durationMs <= 0) return inputUri
 
-        // 目标设为 8.5MB，预留足够空间给音频和容器开销，确保最终输出在 10MB 以内
-        val targetSizeBytes = 8_500_000L
+        // 目标设为 38MB，预留足够空间给音频和容器开销，确保最终输出在 40MB 以内
+        val targetSizeBytes = 38_000_000L
         val durationSec = durationMs / 1000.0
         
         // 计算压缩后的理论比特率 (bps)

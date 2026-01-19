@@ -10,4 +10,13 @@
             android:icon="@drawable/ic_settings"
             android:title="设置" />
     </group>
+
+    <item android:title="账户">
+        <menu>
+            <item
+                android:id="@+id/nav_logout"
+                android:icon="@drawable/ic_logout"
+                android:title="退出登录" />
+        </menu>
+    </item>
 </menu>

@@ -72,6 +72,13 @@ object UserManager {
     }
 
     /**
+     * Clears the current user from persistent storage.
+     */
+    fun logout() {
+        sharedPreferences?.edit()?.remove(KEY_USER_ID)?.apply()
+    }
+
+    /**
      * Gets the name of the *current* user.
      * @return The name of the current user, or null if the current user is not recognized.
      */

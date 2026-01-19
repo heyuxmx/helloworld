@@ -2,6 +2,8 @@ package com.heyu.zhudeapp.data
 
 import android.annotation.SuppressLint
 import android.os.Parcelable
+import com.heyu.zhudeapp.data.Comment
+import com.heyu.zhudeapp.data.UserProfile
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.SerialName
@@ -18,6 +20,10 @@ data class Post(
     val userId: String,
     @SerialName("image_urls")
     val imageUrls: List<String> = emptyList(),
+    
+    // 新增：视频链接字段，用于存储阿里云 OSS 的地址
+    @SerialName("video_url")
+    val videoUrl: String? = null,
 
     // Fields returned by the database.
     // They have default values to handle the creation-time case.

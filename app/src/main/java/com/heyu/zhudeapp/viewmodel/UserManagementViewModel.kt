@@ -69,4 +69,9 @@ class UserManagementViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    fun logout() {
+        UserManager.logout()
+        _currentUser.value = null
+    }
+
 }

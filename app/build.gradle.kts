@@ -36,8 +36,8 @@ android {
         applicationId = "com.heyu.zhudeapp"
         minSdk = 24
         targetSdk = 34
-        versionCode = 7
-        versionName = "1.0.6"
+        versionCode = 8 // 增加版本号以确保覆盖安装成功
+        versionName = "1.0.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -47,8 +47,13 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            // 让调试版本也使用 release 签名，避免覆盖安装冲突
+            signingConfig = signingConfigs.getByName("release")
+        }
         release {
             isMinifyEnabled = true
+            isDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -71,14 +76,13 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/androidx.profileinstaller_profileinstaller.version"
         }
     }
 
 }
 
-configurations.all {
-    exclude(group = "androidx.profileinstaller", module = "profileinstaller")
-}
+// 移除之前的 exclude(group = "androidx.profileinstaller") 块，解决 INSTALL_BASELINE_PROFILE_FAILED 报错
 
 dependencies {
     implementation(platform("io.github.jan-tennert.supabase:bom:2.5.3"))
@@ -114,6 +118,9 @@ dependencies {
     implementation("com.github.chrisbanes:PhotoView:2.3.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("de.hdodenhof:circleimageview:3.1.0")
+    
+    // Aliyun OSS SDK
+    implementation("com.aliyun.dpa:oss-android-sdk:2.9.21")
     
     // Video Transcoding Library
     implementation("com.otaliastudios:transcoder:0.10.5")

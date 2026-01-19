@@ -288,6 +288,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         when (item.itemId) {
             R.id.nav_home -> {}
             R.id.nav_settings -> {}
+            R.id.nav_logout -> {
+                userManagementViewModel.logout()
+            }
         }
         drawerLayout.closeDrawer(GravityCompat.START)
         return true
