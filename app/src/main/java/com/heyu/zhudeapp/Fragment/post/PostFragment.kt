@@ -52,7 +52,6 @@ import java.io.IOException
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
-
 class PostFragment : Fragment(), OnItemLongClickListener,
     OnImageSaveListener, OnCommentLongClickListener,
     OnCommentInteractionListener {
@@ -62,13 +61,10 @@ class PostFragment : Fragment(), OnItemLongClickListener,
     private var _binding: FragmentPostBinding? = null
     private val binding get() = _binding!!
 
-
     private lateinit var postAdapter: PostAdapter
-
     private var imageUrlToSave: String? = null
     private var pendingPostIdToScroll: String? = null
     private var onBackPressedCallback: OnBackPressedCallback? = null
-
     private var focusedPostId: Long? = null
 
     private val requestPermissionLauncher = registerForActivityResult(
@@ -101,15 +97,14 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         setupDaysCounter()
         observeNavigation()
         setupFocusCommentViewListeners()
-        setupKeyboardListener() // The single source of truth for the focus view
-        setupRecyclerViewTouchListener() // Handles "click outside" to dismiss
+        setupKeyboardListener()
+        setupRecyclerViewTouchListener()
 
-        // Trigger the initial load of posts.
+        // 启动即加载：ViewModel 会先给本地缓存，再后台同步
         loadPosts()
 
-        onBackPressedCallback = object : OnBackPressedCallback(false) { // Initially disabled
+        onBackPressedCallback = object : OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
-                // Simply hide the keyboard. The listener will hide the view.
                 hideKeyboard()
             }
         }.also {
@@ -117,170 +112,59 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         }
     }
 
-    private fun setupKeyboardListener() {
-        // Use the root view of the fragment for the listener.
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
-            val imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime())
-            val imeHeight = windowInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-            val navBarHeight = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
-
-            // The actual margin needed is the keyboard height MINUS the nav bar height.
-            // This is because the IME inset often includes the navigation bar.
-            // We use coerceAtLeast(0) to prevent negative margins during transitions.
-            val newBottomMargin = if (imeVisible) (imeHeight - 3*navBarHeight).coerceAtLeast(0) else 0
-
-            binding.focusCommentContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-                bottomMargin = newBottomMargin
+    private fun observeViewModel() {
+        // 核心：这里的 LiveData 来自 Room 数据库
+        viewModel.posts.observe(viewLifecycleOwner) { posts ->
+            if (posts.isNullOrEmpty()) return@observe
+            
+            // 只要数据库里有，哪怕是断网状态，也会立刻显示
+            postAdapter.updatePostsAndDrafts(posts, viewModel.commentDrafts.value?.mapValues { it.value ?: "" } ?: emptyMap())
+            
+            // 隐藏加载动画（无论是本地加载完还是网络同步完）
+            if (_binding != null) {
+                binding.swipeRefreshLayout.isRefreshing = false
             }
 
-            if (imeVisible) {
-                binding.focusCommentContainer.visibility = View.VISIBLE
-                onBackPressedCallback?.isEnabled = true
+            // 预加载媒体文件到磁盘
+            preFetchMedia(posts)
 
-                // When the comment box is visible, add padding to the recycler view
-                // so the last item can scroll above it.
-                // We post it to make sure the view has a measured height.
-                binding.focusCommentContainer.post {
-                    binding.postsRecyclerView.updatePadding(bottom = binding.focusCommentContainer.height)
+            pendingPostIdToScroll?.let { postId ->
+                val postIndex = postAdapter.getPostIndex(postId)
+                if (postIndex != -1) {
+                    binding.postsRecyclerView.smoothScrollToPosition(postIndex)
                 }
-            } else {
-                binding.focusCommentContainer.visibility = View.GONE
-                onBackPressedCallback?.isEnabled = false
-                focusedPostId = null
-
-                // Reset recycler view padding
-                binding.postsRecyclerView.updatePadding(bottom = 0)
-            }
-
-            // Also, apply padding for the status bar at the top of the list.
-            val systemBarInsets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-            binding.swipeRefreshLayout.updatePadding(
-                top = systemBarInsets.top,
-                left = systemBarInsets.left,
-                right = systemBarInsets.right
-            )
-
-            // CRUCIAL: We consume the IME insets.
-            // This tells the system "We have handled the keyboard in this branch of the view hierarchy".
-            WindowInsetsCompat.Builder(windowInsets).setInsets(
-                WindowInsetsCompat.Type.ime(),
-                Insets.of(0, 0, 0, 0)
-            ).build()
-        }
-    }
-
-
-    private fun setupFocusCommentViewListeners() {
-        binding.focusSendButton.setOnClickListener {
-            val commentText = binding.focusCommentInput.text.toString().trim()
-            val postId = focusedPostId // Capture the ID before it's nulled by hideKeyboard
-            if (commentText.isNotEmpty() && postId != null) {
-                val currentUserId = UserManager.getCurrentUserId()
-                viewModel.addComment(postId, commentText, currentUserId!!)
-                viewModel.updateCommentDraft(postId, "") // THE FIX: Clear the draft
-                hideKeyboard() // Now, everything is done, hide the UI.
+                pendingPostIdToScroll = null
             }
         }
 
-        binding.focusCommentInput.addTextChangedListener { editable ->
-            focusedPostId?.let { postId ->
-                viewModel.updateCommentDraft(postId, editable.toString())
+        viewModel.error.observe(viewLifecycleOwner) { error ->
+            // 网络报错不影响用户看本地帖子，只是提示一下同步失败
+            Toasty.warning(requireContext(), error, Toasty.LENGTH_SHORT).show()
+            if (_binding != null) {
+                binding.swipeRefreshLayout.isRefreshing = false
+            }
+        }
+
+        lifecycleScope.launch {
+            viewModel.commentDrafts.collectLatest { drafts ->
+                postAdapter.updatePostsAndDrafts(viewModel.posts.value ?: emptyList(), drafts?.mapValues { it.value ?: "" } ?: emptyMap())
             }
         }
     }
 
-    // This is the CORRECT way to handle "click outside to dismiss"
-    private fun setupRecyclerViewTouchListener() {
-        val gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
-            override fun onSingleTapUp(e: MotionEvent): Boolean {
-                // This is the tap we are interested in.
-                if (binding.focusCommentContainer.visibility == View.VISIBLE) {
-                    // If the focus view is visible, a tap on the RV should hide it.
-                    hideKeyboard()
-                }
-                return super.onSingleTapUp(e)
+    /**
+     * 极速预加载：利用 Glide 将图片 and 视频缩略图强行持久化到磁盘缓存
+     */
+    private fun preFetchMedia(posts: List<Post>) {
+        posts.take(30).forEach { post ->
+            post.author?.avatarUrl?.let {
+                Glide.with(this).load(it).diskCacheStrategy(DiskCacheStrategy.ALL).preload()
             }
-        })
-
-        binding.postsRecyclerView.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
-            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
-                // Let the gesture detector inspect the event.
-                // We don't want to intercept the event, just listen for a tap.
-                gestureDetector.onTouchEvent(e)
-                return false // Let the RecyclerView handle the event as usual.
-            }
-
-            override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
-            override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
-        })
-    }
-
-
-    private fun hideKeyboard() {
-        val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-        imm?.hideSoftInputFromWindow(view?.windowToken, 0)
-    }
-
-    override fun onCommentDraftClicked(post: Post) {
-        // 1. Set the context for the comment
-        focusedPostId = post.id
-        binding.focusCommentInput.setText(viewModel.commentDrafts.value[post.id] ?: "")
-
-        // 2. Request focus and show the keyboard. The listener will handle the UI changes.
-        binding.focusCommentInput.requestFocus()
-        val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-        imm?.showSoftInput(binding.focusCommentInput, InputMethodManager.SHOW_IMPLICIT)
-    }
-
-
-    private fun observeNavigation() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            mainViewModel.navigateToPost.collect { postId ->
-                if (postId.isNotBlank()) {
-                    val postIndex = postAdapter.getPostIndex(postId)
-
-                    if (postIndex != -1) {
-                        // Post is already in the list, just scroll to it.
-                        binding.postsRecyclerView.smoothScrollToPosition(postIndex)
-                    } else {
-                        // Post not found. Trigger a refresh and store the ID to scroll to later.
-                        pendingPostIdToScroll = postId
-                        binding.swipeRefreshLayout.isRefreshing = true
-                        loadPosts()
-                        Toasty.info(requireContext(), "正在加载新动态...", Toast.LENGTH_SHORT).show()
-                    }
-                    // Consume the event.
-                    mainViewModel.onNavigationComplete()
-                }
-            }
-        }
-    }
-
-    private fun setupDaysCounter() {
-        val startDate = Calendar.getInstance().apply {
-            set(2024, Calendar.DECEMBER, 2, 0, 0, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        val today = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-
-        val diffInMillis = today.timeInMillis - startDate.timeInMillis
-        val days = TimeUnit.MILLISECONDS.toDays(diffInMillis) + 1
-        binding.daysNumberTextView.text = days.toString()
-    }
-
-    private fun setupFragmentResultListener() {
-        childFragmentManager.setFragmentResultListener(DeleteConfirmationDialogFragment.REQUEST_KEY, this) { _, bundle ->
-            val confirmed = bundle.getBoolean(DeleteConfirmationDialogFragment.BUNDLE_KEY_CONFIRMED)
-            if (confirmed) {
-                val postJson = bundle.getString(DeleteConfirmationDialogFragment.BUNDLE_KEY_POST)
-                postJson?.let {
-                    val post = Json.Default.decodeFromString<Post>(it!!)
-                    deletePost(post)
+            post.imageUrls.forEach { url ->
+                if (url.contains(".mp4", ignoreCase = true)) {
+                    Glide.with(this).asBitmap().load(url).diskCacheStrategy(DiskCacheStrategy.ALL).preload()
+                } else {
+                    Glide.with(this).load(url).diskCacheStrategy(DiskCacheStrategy.ALL).preload()
                 }
             }
         }
@@ -296,11 +180,15 @@ class PostFragment : Fragment(), OnItemLongClickListener,
             onItemLongClickListener = this,
             onImageSaveListener = this,
             onCommentLongClickListener = this,
-            onCommentInteractionListener = this // Pass the implementation
+            onCommentInteractionListener = this
         )
         binding.postsRecyclerView.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = postAdapter
+            // 优化：设置固定大小提高性能
+            setHasFixedSize(true)
+            // 优化：增加预取数量
+            layoutManager?.let { (it as LinearLayoutManager).initialPrefetchItemCount = 4 }
         }
     }
 
@@ -310,70 +198,133 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         }
     }
 
-    private fun observeViewModel() {
-        viewModel.posts.observe(viewLifecycleOwner) { posts ->
-            if (posts.isNullOrEmpty()) return@observe
-            
-            postAdapter.updatePostsAndDrafts(posts, viewModel.commentDrafts.value?.mapValues { it.value ?: "" } ?: emptyMap())
-            if (_binding != null) {
-                binding.swipeRefreshLayout.isRefreshing = false
+    private fun loadPosts() {
+        viewModel.fetchPosts()
+    }
+
+    // --- 以下为 UI 交互逻辑，保持原样 ---
+
+    private fun setupKeyboardListener() {
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
+            val imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime())
+            val imeHeight = windowInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val navBarHeight = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
+            val newBottomMargin = if (imeVisible) (imeHeight - 3*navBarHeight).coerceAtLeast(0) else 0
+
+            binding.focusCommentContainer.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                bottomMargin = newBottomMargin
             }
 
-            // Pre-fetch images and video thumbnails for all posts to speed up scrolling
-            preFetchMedia(posts)
-
-            // After the new list is loaded, check if we need to scroll to a specific post.
-            pendingPostIdToScroll?.let { postId ->
-                val postIndex = postAdapter.getPostIndex(postId)
-                if (postIndex != -1) {
-                    binding.postsRecyclerView.smoothScrollToPosition(postIndex)
+            if (imeVisible) {
+                binding.focusCommentContainer.visibility = View.VISIBLE
+                onBackPressedCallback?.isEnabled = true
+                binding.focusCommentContainer.post {
+                    binding.postsRecyclerView.updatePadding(bottom = binding.focusCommentContainer.height)
                 }
-                // Reset the pending ID after attempting to scroll.
-                pendingPostIdToScroll = null
+            } else {
+                binding.focusCommentContainer.visibility = View.GONE
+                onBackPressedCallback?.isEnabled = false
+                focusedPostId = null
+                binding.postsRecyclerView.updatePadding(bottom = 0)
             }
-        }
-        viewModel.error.observe(viewLifecycleOwner) { error ->
-            Toasty.error(requireContext(), error, Toasty.LENGTH_LONG).show()
-            if (_binding != null) {
-                binding.swipeRefreshLayout.isRefreshing = false
-            }
-        }
 
-        // Observe draft changes
-        lifecycleScope.launch {
-            viewModel.commentDrafts.collectLatest { drafts ->
-                postAdapter.updatePostsAndDrafts(viewModel.posts.value ?: emptyList(), drafts?.mapValues { it.value ?: "" } ?: emptyMap())
+            val systemBarInsets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            binding.swipeRefreshLayout.updatePadding(top = systemBarInsets.top, left = systemBarInsets.left, right = systemBarInsets.right)
+
+            WindowInsetsCompat.Builder(windowInsets).setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, 0)).build()
+        }
+    }
+
+    private fun setupFocusCommentViewListeners() {
+        binding.focusSendButton.setOnClickListener {
+            val commentText = binding.focusCommentInput.text.toString().trim()
+            val postId = focusedPostId
+            if (commentText.isNotEmpty() && postId != null) {
+                val currentUserId = UserManager.getCurrentUserId()
+                viewModel.addComment(postId, commentText, currentUserId!!)
+                viewModel.updateCommentDraft(postId, "")
+                hideKeyboard()
+            }
+        }
+        binding.focusCommentInput.addTextChangedListener { editable ->
+            focusedPostId?.let { postId -> viewModel.updateCommentDraft(postId, editable.toString()) }
+        }
+    }
+
+    private fun setupRecyclerViewTouchListener() {
+        val gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                if (binding.focusCommentContainer.visibility == View.VISIBLE) hideKeyboard()
+                return super.onSingleTapUp(e)
+            }
+        })
+        binding.postsRecyclerView.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                gestureDetector.onTouchEvent(e)
+                return false
+            }
+            override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
+            override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
+        })
+    }
+
+    private fun hideKeyboard() {
+        val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(view?.windowToken, 0)
+    }
+
+    override fun onCommentDraftClicked(post: Post) {
+        focusedPostId = post.id
+        binding.focusCommentInput.setText(viewModel.commentDrafts.value[post.id] ?: "")
+        binding.focusCommentInput.requestFocus()
+        val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.showSoftInput(binding.focusCommentInput, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun observeNavigation() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            mainViewModel.navigateToPost.collect { postId ->
+                if (postId.isNotBlank()) {
+                    val postIndex = postAdapter.getPostIndex(postId)
+                    if (postIndex != -1) {
+                        binding.postsRecyclerView.smoothScrollToPosition(postIndex)
+                    } else {
+                        pendingPostIdToScroll = postId
+                        binding.swipeRefreshLayout.isRefreshing = true
+                        loadPosts()
+                        Toasty.info(requireContext(), "正在从服务器同步新动态...", Toast.LENGTH_SHORT).show()
+                    }
+                    mainViewModel.onNavigationComplete()
+                }
             }
         }
     }
 
-    private fun preFetchMedia(posts: List<Post>) {
-        posts.take(20).forEach { post ->
-            // Pre-fetch author avatar
-            post.author?.avatarUrl?.let {
-                Glide.with(this).load(it).diskCacheStrategy(DiskCacheStrategy.ALL).preload()
-            }
-            // Pre-fetch images
-            post.imageUrls.forEach { url ->
-                if (url.contains(".mp4", ignoreCase = true)) {
-                    // For videos, pre-fetch the first frame (thumbnail)
-                    Glide.with(this).asBitmap().load(url).diskCacheStrategy(DiskCacheStrategy.ALL).preload()
-                } else {
-                    Glide.with(this).load(url).diskCacheStrategy(DiskCacheStrategy.ALL).preload()
+    private fun setupDaysCounter() {
+        val startDate = Calendar.getInstance().apply { set(2024, Calendar.DECEMBER, 2, 0, 0, 0); set(Calendar.MILLISECOND, 0) }
+        val today = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
+        val diffInMillis = today.timeInMillis - startDate.timeInMillis
+        val days = TimeUnit.MILLISECONDS.toDays(diffInMillis) + 1
+        binding.daysNumberTextView.text = days.toString()
+    }
+
+    private fun setupFragmentResultListener() {
+        childFragmentManager.setFragmentResultListener(DeleteConfirmationDialogFragment.REQUEST_KEY, this) { _, bundle ->
+            val confirmed = bundle.getBoolean(DeleteConfirmationDialogFragment.BUNDLE_KEY_CONFIRMED)
+            if (confirmed) {
+                val postJson = bundle.getString(DeleteConfirmationDialogFragment.BUNDLE_KEY_POST)
+                postJson?.let {
+                    val post = Json.Default.decodeFromString<Post>(it)
+                    deletePost(post)
                 }
             }
         }
     }
-
 
     private fun setupFab() {
         binding.fabCreatePost.setOnClickListener {
             startActivity(Intent(requireContext(), CreatePostActivity::class.java))
         }
-    }
-
-    private fun loadPosts() {
-        viewModel.fetchPosts()
     }
 
     override fun onItemLongClick(post: Post) {
@@ -386,20 +337,13 @@ class PostFragment : Fragment(), OnItemLongClickListener,
             .setTitle("删除评论")
             .setMessage("您确定要删除这条评论吗？")
             .setNegativeButton("取消", null)
-            .setPositiveButton("删除") { _, _ ->
-                deleteComment(comment)
-            }
+            .setPositiveButton("删除") { _, _ -> deleteComment(comment) }
             .show()
     }
 
     override fun onImageSave(imageUrl: String) {
         this.imageUrlToSave = imageUrl
-
-        if (ContextCompat.checkSelfPermission(
-                requireContext(),
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
-            ) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-        ) {
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             saveImageToGallery(imageUrl)
         } else {
             requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
@@ -409,12 +353,7 @@ class PostFragment : Fragment(), OnItemLongClickListener,
     private fun saveImageToGallery(imageUrl: String) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val bitmap = Glide.with(requireContext())
-                    .asBitmap()
-                    .load(imageUrl)
-                    .submit()
-                    .get()
-
+                val bitmap = Glide.with(requireContext()).asBitmap().load(imageUrl).submit().get()
                 val contentValues = ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, "Image_${System.currentTimeMillis()}.jpg")
                     put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
@@ -423,47 +362,36 @@ class PostFragment : Fragment(), OnItemLongClickListener,
                         put(MediaStore.MediaColumns.IS_PENDING, 1)
                     }
                 }
-
                 val resolver = requireContext().contentResolver
                 val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-
                 uri?.let {
                     resolver.openOutputStream(it).use { outputStream ->
-                        if (outputStream == null) {
-                            throw IOException("Failed to get output stream.")
-                        }
-                        if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 95, outputStream)) {
-                            throw IOException("Failed to save bitmap.")
-                        }
+                        if (outputStream == null) throw IOException("Failed to get output stream.")
+                        if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 95, outputStream)) throw IOException("Failed to save bitmap.")
                     }
-
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         contentValues.clear()
                         contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
                         resolver.update(uri, contentValues, null, null)
                     }
-
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(requireContext(), "图片已保存到相册", Toast.LENGTH_SHORT).show()
-                    }
+                    withContext(Dispatchers.Main) { Toast.makeText(requireContext(), "图片已保存到相册", Toast.LENGTH_SHORT).show() }
                 }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), "保存失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
+                withContext(Dispatchers.Main) { Toast.makeText(requireContext(), "保存失败: ${e.message}", Toast.LENGTH_SHORT).show() }
             }
         }
     }
 
     private fun deletePost(post: Post) {
-        lifecycleScope.launch {
-            viewModel.deletePost(post)
-        }
+        lifecycleScope.launch { viewModel.deletePost(post) }
     }
 
     private fun deleteComment(comment: Comment) {
-        lifecycleScope.launch {
-            viewModel.deleteComment(comment)
-        }
+        lifecycleScope.launch { viewModel.deleteComment(comment) }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }

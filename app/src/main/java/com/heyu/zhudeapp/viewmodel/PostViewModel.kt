@@ -19,7 +19,7 @@ class PostViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = PostRepository(application)
 
-    // Using Flow from Room, converted to LiveData
+    // 观察本地数据库的数据流，只要本地有，UI 就能立刻显示
     val posts: LiveData<List<Post>> = repository.getPostsFlow().asLiveData()
 
     private val _error = MutableLiveData<String>()
@@ -28,7 +28,6 @@ class PostViewModel(application: Application) : AndroidViewModel(application) {
     private val _postCreationSuccess = MutableLiveData<Boolean>()
     val postCreationSuccess: LiveData<Boolean> = _postCreationSuccess
 
-    // --- Comment Draft Management ---
     private val _commentDrafts = MutableStateFlow<Map<Long, String>>(emptyMap())
     val commentDrafts = _commentDrafts.asStateFlow()
 
@@ -43,18 +42,21 @@ class PostViewModel(application: Application) : AndroidViewModel(application) {
         newDrafts.remove(postId)
         _commentDrafts.value = newDrafts
     }
-    // --------------------------------
 
     fun doneNotifyingSms() {
         _postCreationSuccess.postValue(false)
     }
 
+    /**
+     * 核心逻辑：发起网络同步
+     */
     fun fetchPosts() {
         viewModelScope.launch {
             try {
+                // 仅执行数据库同步，UI 会通过观察 `posts` 自动刷新
                 repository.refreshPosts()
             } catch (e: Exception) {
-                _error.postValue("加载最新动态失败: ${e.message}")
+                _error.postValue("连接服务器失败，当前显示为缓存内容")
             }
         }
     }
@@ -63,7 +65,7 @@ class PostViewModel(application: Application) : AndroidViewModel(application) {
         try {
             repository.deletePost(post)
         } catch (e: Exception) {
-            _error.postValue("删除动态失败: ${e.message}")
+            _error.postValue("删除失败: ${e.message}")
         }
     }
 
@@ -83,7 +85,7 @@ class PostViewModel(application: Application) : AndroidViewModel(application) {
                 repository.refreshPosts()
                 _postCreationSuccess.postValue(true)
             } catch (e: Exception) {
-                _error.postValue("创建动态失败: ${e.message}")
+                _error.postValue("发布失败: ${e.message}")
             }
         }
     }
@@ -97,7 +99,7 @@ class PostViewModel(application: Application) : AndroidViewModel(application) {
                 repository.refreshPosts()
                 _postCreationSuccess.postValue(true)
             } catch (e: Exception) {
-                _error.postValue("创建动态失败: ${e.message}")
+                _error.postValue("发布失败: ${e.message}")
             }
         }
     }
@@ -109,7 +111,7 @@ class PostViewModel(application: Application) : AndroidViewModel(application) {
                 clearCommentDraft(postId)
                 repository.refreshPosts()
             } catch (e: Exception) {
-                _error.postValue("添加评论失败: ${e.message}")
+                _error.postValue("评论失败: ${e.message}")
             }
         }
     }
