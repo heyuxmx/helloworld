@@ -42,6 +42,7 @@ import com.heyu.zhudeapp.databinding.FragmentPostBinding
 import com.heyu.zhudeapp.di.UserManager
 import com.heyu.zhudeapp.viewmodel.PostViewModel
 import com.heyu.zhudeapp.viewmodel.MainViewModel
+import com.heyu.zhudeapp.util.VideoCacheManager
 import es.dmoral.toasty.Toasty
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
@@ -100,7 +101,6 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         setupKeyboardListener()
         setupRecyclerViewTouchListener()
 
-        // 启动即加载：ViewModel 会先给本地缓存，再后台同步
         loadPosts()
 
         onBackPressedCallback = object : OnBackPressedCallback(false) {
@@ -113,19 +113,15 @@ class PostFragment : Fragment(), OnItemLongClickListener,
     }
 
     private fun observeViewModel() {
-        // 核心：这里的 LiveData 来自 Room 数据库
         viewModel.posts.observe(viewLifecycleOwner) { posts ->
             if (posts.isNullOrEmpty()) return@observe
             
-            // 只要数据库里有，哪怕是断网状态，也会立刻显示
             postAdapter.updatePostsAndDrafts(posts, viewModel.commentDrafts.value?.mapValues { it.value ?: "" } ?: emptyMap())
             
-            // 隐藏加载动画（无论是本地加载完还是网络同步完）
             if (_binding != null) {
                 binding.swipeRefreshLayout.isRefreshing = false
             }
 
-            // 预加载媒体文件到磁盘
             preFetchMedia(posts)
 
             pendingPostIdToScroll?.let { postId ->
@@ -138,7 +134,6 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         }
 
         viewModel.error.observe(viewLifecycleOwner) { error ->
-            // 网络报错不影响用户看本地帖子，只是提示一下同步失败
             Toasty.warning(requireContext(), error, Toasty.LENGTH_SHORT).show()
             if (_binding != null) {
                 binding.swipeRefreshLayout.isRefreshing = false
@@ -152,26 +147,25 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         }
     }
 
-    /**
-     * 极速预加载：利用 Glide 将图片 and 视频缩略图强行持久化到磁盘缓存
-     */
     private fun preFetchMedia(posts: List<Post>) {
         posts.take(40).forEach { post ->
-            // Pre-fetch author avatar
             post.author?.avatarUrl?.let {
                 Glide.with(this).load(it)
                     .diskCacheStrategy(DiskCacheStrategy.ALL)
                     .dontAnimate()
                     .preload()
             }
-            // Pre-fetch images/video thumbnails (using the same size as grid)
             post.imageUrls.forEach { url ->
                 if (url.contains(".mp4", ignoreCase = true)) {
+                    // Pre-fetch video thumbnail
                     Glide.with(this).asBitmap().load(url)
                         .override(300, 300)
                         .diskCacheStrategy(DiskCacheStrategy.ALL)
                         .dontAnimate()
                         .preload()
+                    
+                    // NEW: Pre-cache first 2MB of the video file
+                    VideoCacheManager.preCacheVideo(requireContext(), url)
                 } else {
                     Glide.with(this).load(url)
                         .override(300, 300)
@@ -198,11 +192,8 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         binding.postsRecyclerView.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = postAdapter
-            // 优化：设置固定大小提高性能
             setHasFixedSize(true)
-            // 增加视图缓存，减少滚动时的重新绑定
             setItemViewCacheSize(20)
-            // 优化：增加预取数量
             layoutManager?.let { (it as LinearLayoutManager).initialPrefetchItemCount = 6 }
         }
     }
@@ -216,8 +207,6 @@ class PostFragment : Fragment(), OnItemLongClickListener,
     private fun loadPosts() {
         viewModel.fetchPosts()
     }
-
-    // --- 以下为 UI 交互逻辑，保持原样 ---
 
     private fun setupKeyboardListener() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->

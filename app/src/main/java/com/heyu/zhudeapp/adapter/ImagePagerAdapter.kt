@@ -5,7 +5,6 @@ import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
-import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -17,14 +16,21 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.annotation.OptIn
 import androidx.appcompat.app.AlertDialog
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.databinding.ItemImagePagerBinding
 import com.heyu.zhudeapp.databinding.PagerItemVideoBinding
-import java.io.OutputStream
+import com.heyu.zhudeapp.util.VideoCacheManager
 
+@OptIn(UnstableApi::class)
 class ImagePagerAdapter(private val mediaUrls: List<String>) :
     RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
@@ -36,88 +42,103 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
     class ImagePagerViewHolder(val binding: ItemImagePagerBinding) : RecyclerView.ViewHolder(binding.root)
 
     class VideoPagerViewHolder(val binding: PagerItemVideoBinding) : RecyclerView.ViewHolder(binding.root) {
-        private var isVideoPrepared = false
+        private var player: ExoPlayer? = null
         private var isDragging = false
         private var isSeeking = false
         private var lastManualSeekTime = 0L
+        private var videoUrl: String? = null
 
         fun getIsDragging(): Boolean = isDragging
 
         fun playVideo() {
-            try {
-                if (isVideoPrepared && !binding.videoView.isPlaying) {
-                    binding.videoView.start()
-                    binding.playPauseButton.setImageResource(R.drawable.ic_videostop)
-                    binding.playPauseButton.tag = "playing"
-                } else if (!isVideoPrepared) {
-                    binding.playPauseButton.setImageResource(R.drawable.ic_videostop)
-                    binding.playPauseButton.tag = "playing"
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            player?.play()
+            binding.playPauseButton.setImageResource(R.drawable.ic_videostop)
+            binding.playPauseButton.tag = "playing"
         }
 
         fun pauseVideo() {
-            try {
-                if (binding.videoView.isPlaying) {
-                    binding.videoView.pause()
-                    binding.playPauseButton.setImageResource(R.drawable.ic_videoplay)
-                    binding.playPauseButton.tag = "paused"
+            player?.pause()
+            binding.playPauseButton.setImageResource(R.drawable.ic_videoplay)
+            binding.playPauseButton.tag = "paused"
+        }
+
+        fun releasePlayer() {
+            player?.release()
+            player = null
+        }
+
+        fun bind(url: String) {
+            this.videoUrl = url
+            if (player == null) {
+                val context = itemView.context
+                player = ExoPlayer.Builder(context).build().apply {
+                    repeatMode = Player.REPEAT_MODE_ONE
+                    
+                    val dataSourceFactory = VideoCacheManager.getCacheDataSourceFactory(context)
+                    val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+                        .createMediaSource(MediaItem.fromUri(Uri.parse(url)))
+                    
+                    setMediaSource(mediaSource)
+                    prepare()
+                    
+                    addListener(object : Player.Listener {
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            when (playbackState) {
+                                Player.STATE_BUFFERING -> binding.videoProgressBar.visibility = View.VISIBLE
+                                Player.STATE_READY -> {
+                                    binding.videoProgressBar.visibility = View.GONE
+                                    updateVideoInfo()
+                                    if (binding.playPauseButton.tag == "playing") play()
+                                }
+                                else -> {}
+                            }
+                        }
+                    })
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
+                binding.playerView.player = player
             }
+            
+            initializeVideoControls()
+            startUpdatingSeekBar()
         }
 
-        fun setIsVideoPrepared(prepared: Boolean) {
-            this.isVideoPrepared = prepared
-        }
-
-        fun initializeVideoControls() {
+        private fun initializeVideoControls() {
             binding.playPauseButton.setOnClickListener { togglePlayPause() }
-            binding.videoView.setOnClickListener { togglePlayPause() }
             
             val touchSlop = ViewConfiguration.get(binding.root.context).scaledTouchSlop
-            var initialPosition = 0
+            var initialPosition = 0L
             var initialTouchX = 0f
-            var targetPosition = 0
+            var targetPosition = 0L
             
-            binding.videoView.setOnTouchListener { v, event ->
+            binding.playerView.setOnTouchListener { v, event ->
                 when (event.action) {
                     android.view.MotionEvent.ACTION_DOWN -> {
                         initialTouchX = event.x
                         isDragging = false
-                        false // 允许系统处理后续的点击和长按
+                        false
                     }
                     android.view.MotionEvent.ACTION_MOVE -> {
                         val dx = event.x - initialTouchX
-                        
-                        // 1. 判断是否进入滑动状态
                         if (!isDragging && kotlin.math.abs(dx) > touchSlop) {
                             isDragging = true
                             isSeeking = true
-                            v.cancelLongPress() // 确定滑动，取消长按保存计时
+                            v.cancelLongPress()
                             binding.progressTip.visibility = View.VISIBLE
                             v.parent.requestDisallowInterceptTouchEvent(true)
-                            
-                            // 核心修复：在真正开始滑动的瞬间捕捉当前位置，防止起始点跳变
-                            initialPosition = binding.videoView.currentPosition
+                            initialPosition = player?.currentPosition ?: 0L
                         }
                         
-                        if (isDragging && binding.videoView.duration > 0) {
+                        if (isDragging) {
                             val screenWidth = binding.root.width
                             val percentage = dx / screenWidth
-                            val duration = binding.videoView.duration
+                            val duration = player?.duration ?: 0L
                             
-                            targetPosition = (initialPosition + (percentage * duration)).toInt()
+                            targetPosition = (initialPosition + (percentage * duration)).toLong()
                             targetPosition = targetPosition.coerceIn(0, duration)
                             
-                            // 滑动时只更新 UI，不调用 seekTo，确保滑动顺滑
-                            binding.seekBar.progress = targetPosition
-                            binding.currentTimeText.text = formatTime(targetPosition.toLong())
-                            
-                            binding.progressTipText.text = formatTime(targetPosition.toLong())
+                            binding.seekBar.progress = targetPosition.toInt()
+                            binding.currentTimeText.text = formatTime(targetPosition)
+                            binding.progressTipText.text = formatTime(targetPosition)
                             val progressPercent = if (duration > 0) ((targetPosition.toDouble() / duration) * 100).toInt() else 0
                             binding.progressTipPercent.text = "${progressPercent}%"
                             true
@@ -127,24 +148,15 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
                         if (isDragging) {
                             binding.progressTip.visibility = View.GONE
                             lastManualSeekTime = System.currentTimeMillis()
-                            
-                            // 2. 只有在松手时才执行跳转
-                            binding.videoView.seekTo(targetPosition)
-                            
-                            // 视觉先行：立即把进度条设为终点位置
-                            binding.seekBar.progress = targetPosition
-                            binding.currentTimeText.text = formatTime(targetPosition.toLong())
-
-                            // 延长锁定时间到1.5秒，等待底层跳转稳定，彻底解决回退问题
+                            player?.seekTo(targetPosition)
+                            binding.seekBar.progress = targetPosition.toInt()
+                            binding.currentTimeText.text = formatTime(targetPosition)
                             v.postDelayed({
                                 isDragging = false
                                 isSeeking = false
                             }, 1500)
                             true
-                        } else {
-                            // 注意：这里不要 performClick，否则会导致短按触发两次 toggle
-                            false
-                        }
+                        } else false
                     }
                     else -> false
                 }
@@ -154,31 +166,28 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
                 override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
                     if (fromUser) {
                         binding.currentTimeText.text = formatTime(progress.toLong())
-                        binding.videoView.seekTo(progress)
+                        player?.seekTo(progress.toLong())
                     }
                 }
-
-                override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {
-                    isSeeking = true
-                }
-
+                override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) { isSeeking = true }
                 override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
                     lastManualSeekTime = System.currentTimeMillis()
-                    binding.root.postDelayed({
-                        isSeeking = false
-                    }, 1500)
+                    binding.root.postDelayed({ isSeeking = false }, 1500)
                 }
             })
+            
+            binding.videoController.visibility = View.VISIBLE
         }
         
         private fun togglePlayPause() {
-            if (binding.videoView.isPlaying) pauseVideo() else playVideo()
+            if (player?.isPlaying == true) pauseVideo() else playVideo()
         }
 
         fun updateVideoInfo() {
-            if (binding.videoView.duration > 0) {
-                binding.seekBar.max = binding.videoView.duration
-                binding.totalTimeText.text = formatTime(binding.videoView.duration.toLong())
+            val duration = player?.duration ?: 0L
+            if (duration > 0) {
+                binding.seekBar.max = duration.toInt()
+                binding.totalTimeText.text = formatTime(duration)
             }
         }
 
@@ -187,28 +196,60 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
                 override fun run() {
                     try {
                         val now = System.currentTimeMillis()
-                        // 如果正在操作或操作结束不足1.5秒，不强行同步进度，防止回跳
-                        if (binding.videoView.isPlaying && !isSeeking && !isDragging && (now - lastManualSeekTime > 1500)) {
-                            val currentPosition = binding.videoView.currentPosition
-                            binding.seekBar.progress = currentPosition
-                            binding.currentTimeText.text = formatTime(currentPosition.toLong())
+                        if (player?.isPlaying == true && !isSeeking && !isDragging && (now - lastManualSeekTime > 1500)) {
+                            val currentPos = player?.currentPosition ?: 0L
+                            binding.seekBar.progress = currentPos.toInt()
+                            binding.currentTimeText.text = formatTime(currentPos)
                         }
                         if (binding.root.isAttachedToWindow) {
-                            binding.videoView.handler.postDelayed(this, 1000)
+                            binding.root.postDelayed(this, 1000)
                         }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+                    } catch (e: Exception) {}
                 }
             }
-            binding.videoView.handler.post(updateRunnable)
+            binding.root.post(updateRunnable)
         }
         
         private fun formatTime(milliseconds: Long): String {
-            val seconds = milliseconds / 1000
-            val mins = seconds % 3600 / 60
-            val secs = seconds % 60
+            val totalSeconds = milliseconds / 1000
+            val mins = totalSeconds / 60
+            val secs = totalSeconds % 60
             return String.format("%02d:%02d", mins, secs)
+        }
+        
+        fun setupLongClick(url: String) {
+            binding.playerView.setOnLongClickListener {
+                if (isDragging) return@setOnLongClickListener false
+                val context = itemView.context
+                showSaveDialog(context, "要保存这个视频吗？") { saveVideoToGallery(context, url) }
+                true
+            }
+        }
+        
+        private fun showSaveDialog(context: Context, message: String, onSave: () -> Unit) {
+            val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else vibrator.vibrate(50)
+
+            AlertDialog.Builder(context)
+                .setMessage(message)
+                .setPositiveButton("保存") { d, _ -> onSave(); d.dismiss() }
+                .setNegativeButton("取消") { d, _ -> d.dismiss() }
+                .show()
+        }
+
+        private fun saveVideoToGallery(context: Context, videoUrl: String) {
+            try {
+                val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                val name = "ZhudApp_VID_${System.currentTimeMillis()}.mp4"
+                val req = DownloadManager.Request(Uri.parse(videoUrl))
+                    .setTitle(name).setMimeType("video/mp4")
+                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    .setDestinationInExternalPublicDir(Environment.DIRECTORY_MOVIES, "ZhudApp/$name")
+                dm.enqueue(req)
+                Toast.makeText(context, "开始下载", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) { Toast.makeText(context, "失败", Toast.LENGTH_SHORT).show() }
         }
     }
 
@@ -228,37 +269,24 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val mediaUrl = mediaUrls[position]
         val context = holder.itemView.context
-        if (holder is VideoPagerViewHolder) bindVideo(holder, mediaUrl, context)
+        if (holder is VideoPagerViewHolder) {
+            holder.bind(mediaUrl)
+            holder.setupLongClick(mediaUrl)
+        }
         else if (holder is ImagePagerViewHolder) bindImage(holder, mediaUrl, context)
+    }
+
+    override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
+        super.onViewRecycled(holder)
+        if (holder is VideoPagerViewHolder) {
+            holder.releasePlayer()
+        }
     }
 
     private fun bindImage(holder: ImagePagerViewHolder, imageUrl: String, context: Context) {
         Glide.with(context).load(imageUrl).placeholder(R.drawable.image_placeholder).error(R.drawable.image_placeholder).into(holder.binding.photoView)
         holder.binding.photoView.setOnLongClickListener {
             showSaveDialog(context, "要保存这张图片吗？") { saveImageToGallery(holder) }
-            true
-        }
-    }
-
-    private fun bindVideo(holder: VideoPagerViewHolder, videoUrl: String, context: Context) {
-        holder.binding.videoProgressBar.visibility = View.VISIBLE
-        holder.binding.videoController.visibility = View.VISIBLE
-        holder.initializeVideoControls()
-        holder.binding.videoView.setVideoURI(Uri.parse(videoUrl))
-        
-        holder.binding.videoView.setOnPreparedListener { mp ->
-            holder.binding.videoProgressBar.visibility = View.GONE
-            holder.setIsVideoPrepared(true)
-            mp.isLooping = true
-            holder.updateVideoInfo()
-            holder.startUpdatingSeekBar()
-            if (holder.binding.playPauseButton.tag == "playing") holder.binding.videoView.start()
-        }
-
-        holder.binding.videoView.setOnLongClickListener {
-            // 滑动时不触发长按
-            if (holder.getIsDragging()) return@setOnLongClickListener false
-            showSaveDialog(context, "要保存这个视频吗？") { saveVideoToGallery(context, videoUrl) }
             true
         }
     }
@@ -292,7 +320,7 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
         }
         val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
         uri?.let {
-            context.contentResolver.openOutputStream(it)?.use { s -> bitmap.compress(Bitmap.CompressFormat.JPEG, 100, s) }
+            context.contentResolver.openOutputStream(it)?.use { s -> bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 100, s) }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 values.clear()
                 values.put(MediaStore.Images.Media.IS_PENDING, 0)
@@ -300,18 +328,5 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
             }
             Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    private fun saveVideoToGallery(context: Context, videoUrl: String) {
-        try {
-            val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-            val name = "ZhudApp_VID_${System.currentTimeMillis()}.mp4"
-            val req = DownloadManager.Request(Uri.parse(videoUrl))
-                .setTitle(name).setMimeType("video/mp4")
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setDestinationInExternalPublicDir(Environment.DIRECTORY_MOVIES, "ZhudApp/$name")
-            dm.enqueue(req)
-            Toast.makeText(context, "开始下载", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) { Toast.makeText(context, "失败", Toast.LENGTH_SHORT).show() }
     }
 }
