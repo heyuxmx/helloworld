@@ -3,11 +3,6 @@ package com.heyu.zhudeapp.adapter
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.Rect
-import android.graphics.drawable.Drawable
-import android.media.MediaPlayer
-import android.net.Uri
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -18,13 +13,13 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.activity.PostImagePagerActivity
 import com.heyu.zhudeapp.data.Comment
@@ -41,7 +36,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
-
 interface OnItemLongClickListener {
     fun onItemLongClick(post: Post)
 }
@@ -50,12 +44,10 @@ interface OnImageSaveListener {
     fun onImageSave(imageUrl: String)
 }
 
-// Listener for long-clicking a comment (for deletion)
 interface OnCommentLongClickListener {
     fun onCommentLongClick(post: Post, comment: Comment)
 }
 
-// REFACTORED: Simplified listener. Its only job is to signal the fragment to open the focus view.
 interface OnCommentInteractionListener {
     fun onCommentDraftClicked(post: Post)
 }
@@ -64,7 +56,7 @@ class PostAdapter(
     private var posts: List<Post>,
     private var commentDrafts: Map<Long, String>,
     private val lifecycleScope: CoroutineScope,
-    private val currentUserId: String, // The ID of the currently logged-in user
+    private val currentUserId: String,
     private val onItemLongClickListener: OnItemLongClickListener,
     private val onImageSaveListener: OnImageSaveListener,
     private val onCommentLongClickListener: OnCommentLongClickListener,
@@ -72,6 +64,10 @@ class PostAdapter(
 ) : RecyclerView.Adapter<PostAdapter.PostViewHolder>() {
 
     private val likedPostIds = mutableSetOf<Long>()
+    
+    // Separate pools for different types of nested lists to avoid ViewType collisions
+    private val imagesViewPool = RecyclerView.RecycledViewPool()
+    private val commentsViewPool = RecyclerView.RecycledViewPool()
 
     @SuppressLint("NotifyDataSetChanged")
     fun updatePostsAndDrafts(newPosts: List<Post>, newDrafts: Map<Long, String>) {
@@ -86,7 +82,7 @@ class PostAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.list_item_post, parent, false)
-        return PostViewHolder(view, lifecycleScope, likedPostIds, currentUserId, onCommentInteractionListener, onImageSaveListener)
+        return PostViewHolder(view, lifecycleScope, likedPostIds, currentUserId, onCommentInteractionListener, onImageSaveListener, imagesViewPool, commentsViewPool)
     }
 
     override fun onBindViewHolder(holder: PostViewHolder, position: Int) {
@@ -103,7 +99,9 @@ class PostAdapter(
         private val likedPostIds: MutableSet<Long>,
         private val currentUserId: String,
         private val commentInteractionListener: OnCommentInteractionListener,
-        private val onImageSaveListener: OnImageSaveListener
+        private val onImageSaveListener: OnImageSaveListener,
+        private val imagesViewPool: RecyclerView.RecycledViewPool,
+        private val commentsViewPool: RecyclerView.RecycledViewPool
     ) : RecyclerView.ViewHolder(itemView) {
         private val authorAvatar: ImageView = itemView.findViewById(R.id.author_avatar_image)
         private val authorUsername: TextView = itemView.findViewById(R.id.author_username_text)
@@ -112,19 +110,29 @@ class PostAdapter(
         private val mediaContainer: View = itemView.findViewById(R.id.media_container)
         private val imagesRecyclerView: RecyclerView = itemView.findViewById(R.id.images_recycler_view)
         private val postVideoThumbnail: ImageView = itemView.findViewById(R.id.post_video_thumbnail)
-        private val postVideoProgressBar: View = itemView.findViewById(R.id.post_video_progress_bar)
         private val postPlayPauseButton: ImageButton = itemView.findViewById(R.id.post_play_pause_button)
         private val postVideoContainer: View = itemView.findViewById(R.id.post_video_container)
         private val likeIcon: ImageButton = itemView.findViewById(R.id.like_icon)
         private val likeCountText: TextView = itemView.findViewById(R.id.like_count_text)
         private val commentCountText: TextView = itemView.findViewById(R.id.comment_count_text)
-        private val commentInput: EditText = itemView.findViewById(R.id.comment_input) // Will be treated as a button
-        private val sendCommentButton: ImageButton = itemView.findViewById(R.id.send_comment_button) // Will be hidden
+        private val commentInput: EditText = itemView.findViewById(R.id.comment_input)
+        private val sendCommentButton: ImageButton = itemView.findViewById(R.id.send_comment_button)
         private val commentsRecyclerView: RecyclerView = itemView.findViewById(R.id.comments_recycler_view)
 
-        private var textWatcher: TextWatcher? = null
-
-        private lateinit var commentsAdapter: CommentAdapter
+        init {
+            imagesRecyclerView.apply {
+                layoutManager = GridLayoutManager(itemView.context, 3)
+                setRecycledViewPool(imagesViewPool)
+                setHasFixedSize(true)
+                isNestedScrollingEnabled = false
+            }
+            commentsRecyclerView.apply {
+                layoutManager = LinearLayoutManager(itemView.context)
+                setRecycledViewPool(commentsViewPool)
+                setHasFixedSize(true)
+                isNestedScrollingEnabled = false
+            }
+        }
 
         fun bind(
             post: Post,
@@ -132,22 +140,18 @@ class PostAdapter(
             longClickListener: OnItemLongClickListener,
             commentLongClickListener: OnCommentLongClickListener
         ) {
-            // Unbind previous listeners to prevent conflicts
-            commentInput.removeTextChangedListener(textWatcher)
-            textWatcher = null
             commentInput.setOnClickListener(null)
-            sendCommentButton.setOnClickListener(null)
-
-            // Bind author information
+            
             authorUsername.text = post.author?.username ?: "匿名用户"
             Glide.with(itemView.context)
                 .load(post.author?.avatarUrl)
                 .placeholder(R.drawable.hollowlike)
                 .error(R.drawable.hollowlike)
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .dontAnimate()
                 .circleCrop()
                 .into(authorAvatar)
 
-            // --- ADDED: Click avatar to view detail ---
             authorAvatar.setOnClickListener {
                 post.author?.avatarUrl?.let { avatarUrl ->
                     if (avatarUrl.isNotBlank()) {
@@ -165,7 +169,6 @@ class PostAdapter(
             likeCountText.text = post.likes.toString()
             commentCountText.text = post.comments.size.toString()
 
-            // --- REFACTORED COMMENT INTERACTION LOGIC ---
             commentInput.setText(draft.ifEmpty { "添加评论..." })
             commentInput.isFocusable = false
             commentInput.isFocusableInTouchMode = false
@@ -174,19 +177,13 @@ class PostAdapter(
             commentInput.setOnClickListener {
                 commentInteractionListener.onCommentDraftClicked(post)
             }
-            // --- END REFACTORED LOGIC ---
 
-            // Setup Comments Adapter
-            commentsAdapter = CommentAdapter(
+            val commentsAdapter = CommentAdapter(
                 comments = post.comments.toMutableList(),
                 onCommentLongClickListener = { comment -> commentLongClickListener.onCommentLongClick(post, comment) }
             )
-            commentsRecyclerView.apply {
-                layoutManager = LinearLayoutManager(itemView.context)
-                adapter = commentsAdapter
-            }
+            commentsRecyclerView.adapter = commentsAdapter
 
-            // Like Icon Logic
             if (post.likes > 1 || likedPostIds.contains(post.id)) {
                 likeIcon.setImageResource(R.drawable.solidlike)
             } else {
@@ -219,30 +216,17 @@ class PostAdapter(
                 }
             }
 
-            // --- UNIFIED MEDIA DISPLAY LOGIC ---
             if (post.imageUrls.isNotEmpty()) {
                 mediaContainer.visibility = View.VISIBLE
+                imagesRecyclerView.visibility = View.VISIBLE
+                postVideoContainer.visibility = View.GONE
                 
-                // Check if there's a mix of videos and images or just one type
-                val hasVideo = post.imageUrls.any { it.contains(".mp4", ignoreCase = true) }
-                val hasImage = post.imageUrls.any { !it.contains(".mp4", ignoreCase = true) }
-                
-                if (hasVideo && hasImage) {
-                    // Mixed content - show in grid layout with both videos and images
-                    setupMediaGrid(post.imageUrls)
-                    imagesRecyclerView.visibility = View.VISIBLE
-                    postVideoContainer.visibility = View.GONE
-                } else if (hasVideo && post.imageUrls.size == 1) {
-                    // Single video - show in grid layout (now showing thumbnail)
-                    setupMediaGrid(post.imageUrls)
-                    imagesRecyclerView.visibility = View.VISIBLE
-                    postVideoContainer.visibility = View.GONE
-                } else {
-                    // Only images or multiple videos - show in grid layout
-                    setupMediaGrid(post.imageUrls)
-                    imagesRecyclerView.visibility = View.VISIBLE
-                    postVideoContainer.visibility = View.GONE
+                val mediaAdapter = PostImagesAdapter(post.imageUrls, onImageSaveListener)
+                if (imagesRecyclerView.itemDecorationCount > 0) {
+                    imagesRecyclerView.removeItemDecorationAt(0)
                 }
+                imagesRecyclerView.addItemDecoration(GridSpacingItemDecoration(3, 0, true))
+                imagesRecyclerView.adapter = mediaAdapter
             } else {
                 mediaContainer.visibility = View.GONE
             }
@@ -250,46 +234,6 @@ class PostAdapter(
             itemView.setOnLongClickListener {
                 longClickListener.onItemLongClick(post)
                 true
-            }
-        }
-
-        private fun setupMediaGrid(mediaUrls: List<String>) {
-            val mediaAdapter = PostImagesAdapter(mediaUrls, onImageSaveListener)
-            val spanCount = 3
-            val spacing = (0 * itemView.context.resources.displayMetrics.density).toInt() // Reduced spacing
-            imagesRecyclerView.layoutManager = GridLayoutManager(itemView.context, spanCount)
-            imagesRecyclerView.overScrollMode = View.OVER_SCROLL_NEVER // Disable over-scroll effect
-
-            // Remove old decorations before adding a new one
-            if (imagesRecyclerView.itemDecorationCount > 0) {
-                imagesRecyclerView.removeItemDecorationAt(0)
-            }
-            imagesRecyclerView.addItemDecoration(GridSpacingItemDecoration(spanCount, spacing, true))
-            imagesRecyclerView.adapter = mediaAdapter
-        }
-
-        private fun setupVideoPlayer(videoUrl: String) {
-            val context = itemView.context
-            
-            // In PostFragment, we only show the thumbnail and play button
-            // The actual video will play in PostImagePagerActivity
-            
-            // Load video thumbnail as static image
-            val videoUri = Uri.parse(videoUrl)
-            Glide.with(context)
-                .asBitmap()
-                .load(videoUri)
-                .centerCrop()
-                .error(R.drawable.image_placeholder) // Fallback image if loading fails
-                .into(postVideoThumbnail)
-            
-            // Set up play/pause button to open the video in pager activity
-            postPlayPauseButton.setOnClickListener {
-                val intent = Intent(context, PostImagePagerActivity::class.java).apply {
-                    putStringArrayListExtra("image_urls", arrayListOf(videoUrl))
-                    putExtra("current_position", 0)
-                }
-                context.startActivity(intent)
             }
         }
     }
@@ -323,7 +267,6 @@ private fun formatTimestamp(timestamp: String?): String {
                         ParseResult(ld.atStartOfDay(zone), false)
                     }
                 } catch (e: DateTimeParseException) {
-                    // Continue to next formatter
                 }
             }
             try {

@@ -2,20 +2,16 @@ package com.heyu.zhudeapp.adapter
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.drawable.Drawable
-import android.media.MediaPlayer
 import android.net.Uri
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewTreeObserver
 import android.widget.ImageButton
 import android.widget.ImageView
-import android.widget.ProgressBar
-import android.widget.VideoView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.activity.PostImagePagerActivity
 
@@ -75,6 +71,10 @@ class PostImagesAdapter(
             Glide.with(context)
                 .load(mediaUrl)
                 .centerCrop()
+                .placeholder(R.color.grey_placeholder)
+                .transition(DrawableTransitionOptions.withCrossFade())
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .thumbnail(0.1f) // Load a 10% size thumbnail first for extreme speed
                 .into(imageView)
 
             view.setOnClickListener {
@@ -98,28 +98,21 @@ class PostImagesAdapter(
     ) : RecyclerView.ViewHolder(view) {
 
         private val videoView: ImageView = view.findViewById(R.id.video_view_item)
-        private val progressBar: ProgressBar = view.findViewById(R.id.video_progress_bar)
         private val playButton: ImageButton = view.findViewById(R.id.play_button)
 
         fun bind(mediaUrl: String, mediaUris: List<String>, position: Int) {
             val context: Context = view.context
 
-            // Set up the video thumbnail
-            val videoUri = Uri.parse(mediaUrl)
-            
-            // In PostFragment, we only show the thumbnail and play button
-            // The actual video will play in PostImagePagerActivity
-            playButton.visibility = View.VISIBLE
-            
-            // Load video thumbnail as static image
             Glide.with(context)
                 .asBitmap()
-                .load(videoUri)
+                .load(mediaUrl)
                 .centerCrop()
-                .error(R.drawable.image_placeholder) // Fallback image if loading fails
+                .placeholder(R.color.grey_placeholder)
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .thumbnail(0.1f)
+                .error(R.drawable.image_placeholder)
                 .into(videoView)
             
-            // Open in pager activity on click
             val openPagerActivity = {
                 val intent = Intent(context, PostImagePagerActivity::class.java).apply {
                     putStringArrayListExtra("image_urls", ArrayList(mediaUris))
@@ -129,11 +122,7 @@ class PostImagesAdapter(
             }
             
             view.setOnClickListener { openPagerActivity() }
-            
-            // Also allow clicking the play button to open the pager activity
             playButton.setOnClickListener { openPagerActivity() }
-
-            // Long press to save video
             view.setOnLongClickListener {
                 onImageSaveListener.onImageSave(mediaUrl)
                 true

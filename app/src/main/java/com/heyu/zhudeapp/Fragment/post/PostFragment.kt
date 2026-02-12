@@ -156,15 +156,28 @@ class PostFragment : Fragment(), OnItemLongClickListener,
      * 极速预加载：利用 Glide 将图片 and 视频缩略图强行持久化到磁盘缓存
      */
     private fun preFetchMedia(posts: List<Post>) {
-        posts.take(30).forEach { post ->
+        posts.take(40).forEach { post ->
+            // Pre-fetch author avatar
             post.author?.avatarUrl?.let {
-                Glide.with(this).load(it).diskCacheStrategy(DiskCacheStrategy.ALL).preload()
+                Glide.with(this).load(it)
+                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                    .dontAnimate()
+                    .preload()
             }
+            // Pre-fetch images/video thumbnails (using the same size as grid)
             post.imageUrls.forEach { url ->
                 if (url.contains(".mp4", ignoreCase = true)) {
-                    Glide.with(this).asBitmap().load(url).diskCacheStrategy(DiskCacheStrategy.ALL).preload()
+                    Glide.with(this).asBitmap().load(url)
+                        .override(300, 300)
+                        .diskCacheStrategy(DiskCacheStrategy.ALL)
+                        .dontAnimate()
+                        .preload()
                 } else {
-                    Glide.with(this).load(url).diskCacheStrategy(DiskCacheStrategy.ALL).preload()
+                    Glide.with(this).load(url)
+                        .override(300, 300)
+                        .diskCacheStrategy(DiskCacheStrategy.ALL)
+                        .dontAnimate()
+                        .preload()
                 }
             }
         }
@@ -187,8 +200,10 @@ class PostFragment : Fragment(), OnItemLongClickListener,
             adapter = postAdapter
             // 优化：设置固定大小提高性能
             setHasFixedSize(true)
+            // 增加视图缓存，减少滚动时的重新绑定
+            setItemViewCacheSize(20)
             // 优化：增加预取数量
-            layoutManager?.let { (it as LinearLayoutManager).initialPrefetchItemCount = 4 }
+            layoutManager?.let { (it as LinearLayoutManager).initialPrefetchItemCount = 6 }
         }
     }
 

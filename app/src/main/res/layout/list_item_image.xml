@@ -2,7 +2,6 @@
 <com.heyu.zhudeapp.util.SquareImageView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/image_view_item"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:adjustViewBounds="true"
-    android:padding="4dp"
+    android:layout_height="match_parent"
+    android:padding="1dp"
     android:scaleType="centerCrop" />
