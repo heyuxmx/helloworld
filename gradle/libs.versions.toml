@@ -25,6 +25,7 @@ ksp = "1.9.23-1.0.20"
 serialization = "1.9.23"
 kotlinxSerializationJson = "1.6.3"
 photoview = "2.3.0"
+room = "2.6.1"
 
 [libraries]
 
@@ -57,7 +58,10 @@ toasty = { group = "com.github.GrenderG", name = "Toasty", version.ref = "toasty
 photoview = { module = "com.github.chrisbanes:PhotoView", version.ref = "photoview" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 
-
+# Room
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

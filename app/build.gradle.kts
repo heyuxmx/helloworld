@@ -8,6 +8,7 @@ plugins {
     id("kotlin-parcelize")
     alias(libs.plugins.kotlin.serialization)
     id("com.google.gms.google-services")
+    alias(libs.plugins.ksp)
 }
 
 // Read keystore properties
@@ -124,4 +125,9 @@ dependencies {
     
     // Video Transcoding Library
     implementation("com.otaliastudios:transcoder:0.10.5")
+
+    // Room
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 }

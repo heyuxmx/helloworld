@@ -2,6 +2,9 @@ package com.heyu.zhudeapp.data
 
 import android.annotation.SuppressLint
 import android.os.Parcelable
+import androidx.room.Entity
+import androidx.room.Ignore
+import androidx.room.PrimaryKey
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.UserProfile
 import kotlinx.parcelize.IgnoredOnParcel
@@ -13,48 +16,44 @@ import kotlinx.serialization.Transient
 @SuppressLint("UnsafeOptInUsageError")
 @Parcelize
 @Serializable
+@Entity(tableName = "posts")
 data class Post(
-    // Fields sent when creating a new post.
     val content: String,
     @SerialName("user_id")
     val userId: String,
     @SerialName("image_urls")
     val imageUrls: List<String> = emptyList(),
-    
-    // 新增：视频链接字段，用于存储阿里云 OSS 的地址
     @SerialName("video_url")
     val videoUrl: String? = null,
-
-    // Fields returned by the database.
-    // They have default values to handle the creation-time case.
+    @PrimaryKey
     val id: Long = 0,
     @SerialName("created_at")
     val createdAt: String = "",
-
     var likes: Int = 0,
-    // This will be populated by the join query, so it should NOT be transient.
-    @IgnoredOnParcel
+    // We keep these in the constructor to support copy() and serialization, 
+    // but Room needs to know how to handle them or ignore them.
+    // For "fastest loading", we WANT to persist author and comments.
     val comments: MutableList<Comment> = mutableListOf(),
+    val author: UserProfile? = null
+) : Parcelable {
 
-    // This field will be populated by a join query with the 'users' table.
-    // It's transient because it's not a direct column in the 'posts' table.
     @Transient
     @IgnoredOnParcel
-    val author: UserProfile? = null, // To hold the author's profile data
+    @Ignore
+    var isLiked: Boolean = false
 
-    @kotlinx.serialization.Transient
+    @Transient
     @IgnoredOnParcel
-    var isLiked: Boolean = false, // To track if the current user has liked the post
+    @Ignore
+    var isUploading: Boolean = false
 
-    // --- Fields for Optimistic UI ---
-    @kotlinx.serialization.Transient
+    @Transient
     @IgnoredOnParcel
-    val isUploading: Boolean = false,
-    @kotlinx.serialization.Transient
-    @IgnoredOnParcel
-    val uploadFailed: Boolean = false,
-    @kotlinx.serialization.Transient
-    @IgnoredOnParcel
-    val localImageUris: List<String> = emptyList()
+    @Ignore
+    var uploadFailed: Boolean = false
 
-) : Parcelable
+    @Transient
+    @IgnoredOnParcel
+    @Ignore
+    var localImageUris: List<String> = emptyList()
+}

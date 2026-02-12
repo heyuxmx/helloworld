@@ -28,6 +28,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.heyu.zhudeapp.activity.CreatePostActivity
 import com.heyu.zhudeapp.adapter.PostAdapter
@@ -311,10 +312,15 @@ class PostFragment : Fragment(), OnItemLongClickListener,
 
     private fun observeViewModel() {
         viewModel.posts.observe(viewLifecycleOwner) { posts ->
+            if (posts.isNullOrEmpty()) return@observe
+            
             postAdapter.updatePostsAndDrafts(posts, viewModel.commentDrafts.value?.mapValues { it.value ?: "" } ?: emptyMap())
             if (_binding != null) {
                 binding.swipeRefreshLayout.isRefreshing = false
             }
+
+            // Pre-fetch images and video thumbnails for all posts to speed up scrolling
+            preFetchMedia(posts)
 
             // After the new list is loaded, check if we need to scroll to a specific post.
             pendingPostIdToScroll?.let { postId ->
@@ -337,6 +343,24 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         lifecycleScope.launch {
             viewModel.commentDrafts.collectLatest { drafts ->
                 postAdapter.updatePostsAndDrafts(viewModel.posts.value ?: emptyList(), drafts?.mapValues { it.value ?: "" } ?: emptyMap())
+            }
+        }
+    }
+
+    private fun preFetchMedia(posts: List<Post>) {
+        posts.take(20).forEach { post ->
+            // Pre-fetch author avatar
+            post.author?.avatarUrl?.let {
+                Glide.with(this).load(it).diskCacheStrategy(DiskCacheStrategy.ALL).preload()
+            }
+            // Pre-fetch images
+            post.imageUrls.forEach { url ->
+                if (url.contains(".mp4", ignoreCase = true)) {
+                    // For videos, pre-fetch the first frame (thumbnail)
+                    Glide.with(this).asBitmap().load(url).diskCacheStrategy(DiskCacheStrategy.ALL).preload()
+                } else {
+                    Glide.with(this).load(url).diskCacheStrategy(DiskCacheStrategy.ALL).preload()
+                }
             }
         }
     }

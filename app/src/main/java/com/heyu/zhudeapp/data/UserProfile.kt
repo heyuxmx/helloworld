@@ -1,5 +1,7 @@
 package com.heyu.zhudeapp.data
 
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
@@ -7,6 +9,7 @@ import kotlin.OptIn
 
 @OptIn(InternalSerializationApi::class)
 @Serializable
+@Parcelize
 data class UserProfile(
     @SerialName("id")
     val id: String,
@@ -14,4 +17,4 @@ data class UserProfile(
     val username: String? = null,
     @SerialName("avatar_url")
     val avatarUrl: String? = null
-)
+) : Parcelable

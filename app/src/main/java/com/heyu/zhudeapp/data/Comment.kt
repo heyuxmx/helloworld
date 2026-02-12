@@ -1,12 +1,14 @@
 package com.heyu.zhudeapp.data
 
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 
 @OptIn(InternalSerializationApi::class)
 @Serializable
+@Parcelize
 data class Comment(
     val id: Long = 0,
     @SerialName("post_id")
@@ -18,7 +20,5 @@ data class Comment(
     val createdAt: String? = null,
     
     // This field will be populated by a join query with the 'users' table.
-    // It's transient because it's not a direct column in the 'comments' table.
-    @Transient
     val author: UserProfile? = null
-)
+) : Parcelable

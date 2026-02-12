@@ -1,21 +1,26 @@
 package com.heyu.zhudeapp.viewmodel
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.di.SupabaseModule
+import com.heyu.zhudeapp.repository.PostRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-class PostViewModel : ViewModel() {
+class PostViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _posts = MutableLiveData<List<Post>>()
-    val posts: LiveData<List<Post>> = _posts
+    private val repository = PostRepository(application)
+
+    // Using Flow from Room, converted to LiveData
+    val posts: LiveData<List<Post>> = repository.getPostsFlow().asLiveData()
 
     private val _error = MutableLiveData<String>()
     val error: LiveData<String> = _error
@@ -47,31 +52,35 @@ class PostViewModel : ViewModel() {
     fun fetchPosts() {
         viewModelScope.launch {
             try {
-                // Use postValue as Supabase calls might be on a background thread
-                _posts.postValue(SupabaseModule.getPosts())
+                repository.refreshPosts()
             } catch (e: Exception) {
-                _error.postValue("加载动态失败: ${e.message}")
+                _error.postValue("加载最新动态失败: ${e.message}")
             }
         }
     }
 
     suspend fun deletePost(post: Post) {
-        // This will propagate the exception up to the calling coroutine scope in the Fragment
-        SupabaseModule.deletePost(post)
-        // After successful deletion, refresh the posts list.
-        fetchPosts()
+        try {
+            repository.deletePost(post)
+        } catch (e: Exception) {
+            _error.postValue("删除动态失败: ${e.message}")
+        }
     }
 
     suspend fun deleteComment(comment: Comment) {
-        SupabaseModule.deleteComment(comment.id)
-        fetchPosts()
+        try {
+            SupabaseModule.deleteComment(comment.id)
+            fetchPosts()
+        } catch (e: Exception) {
+            _error.postValue("删除评论失败: ${e.message}")
+        }
     }
 
     fun createTextPost(content: String, userId: String) {
         viewModelScope.launch {
             try {
                 SupabaseModule.createPost(content, emptyList(), userId)
-                fetchPosts()
+                repository.refreshPosts()
                 _postCreationSuccess.postValue(true)
             } catch (e: Exception) {
                 _error.postValue("创建动态失败: ${e.message}")
@@ -85,7 +94,7 @@ class PostViewModel : ViewModel() {
                 val fileName = "${UUID.randomUUID()}.$fileExtension"
                 val imageUrl = SupabaseModule.uploadPostImage(imageBytes, fileName)
                 SupabaseModule.createPost(content, listOf(imageUrl), userId)
-                fetchPosts()
+                repository.refreshPosts()
                 _postCreationSuccess.postValue(true)
             } catch (e: Exception) {
                 _error.postValue("创建动态失败: ${e.message}")
@@ -97,8 +106,8 @@ class PostViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 SupabaseModule.addComment(postId, commentText, userId)
-                clearCommentDraft(postId) // Clear the draft after successful post
-                fetchPosts() // Refresh posts to show the new comment
+                clearCommentDraft(postId)
+                repository.refreshPosts()
             } catch (e: Exception) {
                 _error.postValue("添加评论失败: ${e.message}")
             }
