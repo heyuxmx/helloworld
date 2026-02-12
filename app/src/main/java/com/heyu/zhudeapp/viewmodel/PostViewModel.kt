@@ -1,6 +1,7 @@
 package com.heyu.zhudeapp.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -56,7 +57,14 @@ class PostViewModel(application: Application) : AndroidViewModel(application) {
                 // 仅执行数据库同步，UI 会通过观察 `posts` 自动刷新
                 repository.refreshPosts()
             } catch (e: Exception) {
-                _error.postValue("连接服务器失败，当前显示为缓存内容")
+                Log.e("PostViewModel", "Fetch posts failed", e)
+                // 显示更具体的错误信息，方便调试
+                val errorMsg = when {
+                    e.message?.contains("timeout", ignoreCase = true) == true -> "服务器响应超时，请重试"
+                    e.message?.contains("JSON", ignoreCase = true) == true -> "数据解析失败，请联系管理员"
+                    else -> "连接服务器失败，当前显示为缓存内容"
+                }
+                _error.postValue(errorMsg)
             }
         }
     }

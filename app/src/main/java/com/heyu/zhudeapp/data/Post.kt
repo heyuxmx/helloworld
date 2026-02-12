@@ -18,9 +18,10 @@ import kotlinx.serialization.Transient
 @Serializable
 @Entity(tableName = "posts")
 data class Post(
-    val content: String,
+    // 使用非空类型配合默认值，结合 coerceInputValues = true 来处理后端的 null
+    val content: String = "",
     @SerialName("user_id")
-    val userId: String,
+    val userId: String = "",
     @SerialName("image_urls")
     val imageUrls: List<String> = emptyList(),
     @SerialName("video_url")
@@ -30,9 +31,6 @@ data class Post(
     @SerialName("created_at")
     val createdAt: String = "",
     var likes: Int = 0,
-    // We keep these in the constructor to support copy() and serialization, 
-    // but Room needs to know how to handle them or ignore them.
-    // For "fastest loading", we WANT to persist author and comments.
     val comments: MutableList<Comment> = mutableListOf(),
     val author: UserProfile? = null
 ) : Parcelable {

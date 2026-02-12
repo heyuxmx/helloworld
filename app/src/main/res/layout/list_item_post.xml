@@ -86,8 +86,8 @@
                     android:layout_gravity="center"
                     android:visibility="gone" />
 
-                <!-- Play button overlay -->
-                <ImageButton
+                <!-- Play button overlay - Using ImageView for compatibility -->
+                <ImageView
                     android:id="@+id/post_play_pause_button"
                     android:layout_width="48dp"
                     android:layout_height="48dp"

@@ -2,19 +2,16 @@ package com.heyu.zhudeapp.data
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
-import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
-import kotlin.OptIn
 
-@OptIn(InternalSerializationApi::class)
 @Serializable
 @Parcelize
 data class UserProfile(
     @SerialName("id")
-    val id: String,
+    val id: String = "",
     @SerialName("username")
-    val username: String? = null,
+    val username: String = "未知用户",
     @SerialName("avatar_url")
     val avatarUrl: String? = null
 ) : Parcelable

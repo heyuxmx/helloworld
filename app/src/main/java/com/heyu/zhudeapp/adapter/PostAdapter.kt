@@ -110,7 +110,7 @@ class PostAdapter(
         private val mediaContainer: View = itemView.findViewById(R.id.media_container)
         private val imagesRecyclerView: RecyclerView = itemView.findViewById(R.id.images_recycler_view)
         private val postVideoThumbnail: ImageView = itemView.findViewById(R.id.post_video_thumbnail)
-        private val postPlayPauseButton: ImageButton = itemView.findViewById(R.id.post_play_pause_button)
+        private val postPlayPauseButton: ImageView = itemView.findViewById(R.id.post_play_pause_button)
         private val postVideoContainer: View = itemView.findViewById(R.id.post_video_container)
         private val likeIcon: ImageButton = itemView.findViewById(R.id.like_icon)
         private val likeCountText: TextView = itemView.findViewById(R.id.like_count_text)
@@ -125,6 +125,9 @@ class PostAdapter(
                 setRecycledViewPool(imagesViewPool)
                 setHasFixedSize(true)
                 isNestedScrollingEnabled = false
+                if (itemDecorationCount == 0) {
+                    addItemDecoration(GridSpacingItemDecoration(3, 0, true))
+                }
             }
             commentsRecyclerView.apply {
                 layoutManager = LinearLayoutManager(itemView.context)
@@ -222,10 +225,6 @@ class PostAdapter(
                 postVideoContainer.visibility = View.GONE
                 
                 val mediaAdapter = PostImagesAdapter(post.imageUrls, onImageSaveListener)
-                if (imagesRecyclerView.itemDecorationCount > 0) {
-                    imagesRecyclerView.removeItemDecorationAt(0)
-                }
-                imagesRecyclerView.addItemDecoration(GridSpacingItemDecoration(3, 0, true))
                 imagesRecyclerView.adapter = mediaAdapter
             } else {
                 mediaContainer.visibility = View.GONE

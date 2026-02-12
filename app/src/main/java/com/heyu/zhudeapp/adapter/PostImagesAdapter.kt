@@ -6,7 +6,6 @@ import android.net.Uri
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageButton
 import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
@@ -74,7 +73,7 @@ class PostImagesAdapter(
                 .placeholder(R.color.grey_placeholder)
                 .transition(DrawableTransitionOptions.withCrossFade())
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
-                .thumbnail(0.1f) // Load a 10% size thumbnail first for extreme speed
+                .thumbnail(0.1f)
                 .into(imageView)
 
             view.setOnClickListener {
@@ -98,7 +97,7 @@ class PostImagesAdapter(
     ) : RecyclerView.ViewHolder(view) {
 
         private val videoView: ImageView = view.findViewById(R.id.video_view_item)
-        private val playButton: ImageButton = view.findViewById(R.id.play_button)
+        private val playButton: ImageView = view.findViewById(R.id.play_button)
 
         fun bind(mediaUrl: String, mediaUris: List<String>, position: Int) {
             val context: Context = view.context

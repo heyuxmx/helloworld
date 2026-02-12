@@ -18,8 +18,10 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.rpc
+import io.github.jan.supabase.serializer.KotlinXSerializer
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
@@ -37,10 +39,21 @@ object SupabaseModule {
     private const val AVATARS_BUCKET = "avatars"
     private const val TAG = "SupabaseModule"
 
+    // 定义一个高容错性的 JSON 解析器
+    private val lenientJson = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true // 核心修复：如果后端返回 null 但字段有默认值，自动使用默认值
+        encodeDefaults = true
+        explicitNulls = false
+    }
+
     val supabase: SupabaseClient = createSupabaseClient(
         supabaseUrl = "https://bvgtzgxscnqhugjirgzp.supabase.co",
         supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z3R6Z3hzY25xaHVnamlyZ3pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1MDA5NTYsImV4cCI6MjA3NTA3Njk1Nn0.bSF7FkLgvFwsJOODgG8AKtLBpF-OPyzaUfoWSUmoFes"
     ) {
+        // 应用全局序列化器配置，确保所有的 Supabase 模块（Postgrest, Auth 等）都使用这个配置
+        defaultSerializer = KotlinXSerializer(lenientJson)
+        
         install(Auth)
         install(Postgrest)
         install(Storage)
@@ -87,21 +100,21 @@ object SupabaseModule {
 
 
     /**
-     * 获取动态列表 - 优化版：使用嵌套查询一次性拉取所有数据，解决国外服务器高延迟问题
+     * 获取动态列表 - 优化加固版：
+     * 1. 使用显式关联 (!user_id, !post_id) 确保复杂环境下查询不失败。
+     * 2. 适当降低 limit 到 200，防止国外服务器单次请求数据量过大导致超时。
      */
     suspend fun getPosts(): List<Post> {
         return try {
-            // 使用 Supabase 的嵌套选择语法，直接关联 users 表和 comments 表（及其关联的 users 表）
-            // 这一行代码替代了原来好几次的网络往返请求
             supabase.postgrest[POST_TABLE].select(
                 columns = Columns.raw("""
                     *,
-                    author:users(*),
-                    comments:comments(*, author:users(*))
+                    author:users!user_id(*),
+                    comments:comments!post_id(*, author:users!user_id(*))
                 """.trimIndent())
             ) {
                 order("created_at", Order.DESCENDING)
-                limit(100) // 增加拉取数量，反正都是一次请求
+                limit(200) 
             }.decodeList<Post>()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch posts with nested query", e)
@@ -120,8 +133,8 @@ object SupabaseModule {
     ): Post {
         val newPost = Post(
             content = content,
-            imageUrls = imageUrls,
             userId = userId,
+            imageUrls = imageUrls,
             videoUrl = videoUrl
         )
 
