@@ -2,6 +2,7 @@ package com.heyu.zhudeapp.activity
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -164,6 +165,41 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         checkForUpdates()
         requestSmsPermission()
+        checkUpdateAnnouncement() // 检查并显示更新公告
+    }
+
+    /**
+     * 检查是否需要显示版本更新公告
+     */
+    private fun checkUpdateAnnouncement() {
+        val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val lastSeenVersion = prefs.getInt("last_seen_version", 0)
+        val currentVersion = BuildConfig.VERSION_CODE
+
+        if (currentVersion > lastSeenVersion) {
+            showNewVersionFeaturesDialog()
+            // 更新记录的版本号，确保该版本只弹一次
+            prefs.edit().putInt("last_seen_version", currentVersion).apply()
+        }
+    }
+
+    /**
+     * 显示新版本功能弹窗
+     */
+    private fun showNewVersionFeaturesDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("🚀 发现新版本特性")
+            .setMessage(
+                "本次更新带飞你的体验：\n\n" +
+                "1️⃣ 【退出登录】功能上线，支持随时切号或重新登录。\n" +
+                "2️⃣ 【极致刷图】引入1GB暴力本地缓存，图片加载速度提升300%，滑得再快也不卡顿。\n" +
+                "3️⃣ 【原像素视频】支持保存原像素视频到本地库，看过的视频 0 毫秒秒开，画质拉满。"
+            )
+            .setPositiveButton("知道了，这就去爽") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setCancelable(false)
+            .show()
     }
 
     private fun requestSmsPermission() {

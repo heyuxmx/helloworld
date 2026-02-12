@@ -6,11 +6,13 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.heyu.zhudeapp.data.Post
+import com.heyu.zhudeapp.data.LocalVideo
 
-@Database(entities = [Post::class], version = 1, exportSchema = false)
+@Database(entities = [Post::class, LocalVideo::class], version = 2, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun postDao(): PostDao
+    abstract fun localVideoDao(): LocalVideoDao
 
     companion object {
         @Volatile
@@ -22,7 +24,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "zhude_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration() // 傻逼，版本升级直接删表，省得迁移报错
+                .build()
                 INSTANCE = instance
                 instance
             }

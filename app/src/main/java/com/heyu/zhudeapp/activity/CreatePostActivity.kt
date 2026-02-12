@@ -19,11 +19,16 @@ import com.heyu.zhudeapp.databinding.ActivityCreatePostBinding
 import com.heyu.zhudeapp.di.SupabaseModule
 import com.heyu.zhudeapp.di.UserManager
 import com.heyu.zhudeapp.util.VideoUtils
+import com.heyu.zhudeapp.util.VideoCacheManager
 import es.dmoral.toasty.Toasty
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 class CreatePostActivity : AppCompatActivity() {
 
@@ -123,6 +128,7 @@ class CreatePostActivity : AppCompatActivity() {
         lifecycleScope.launch {
             showProgressDialog()
             try {
+                // 原视频本地库同步逻辑 + 并发上传
                 val imageUrls = uploadImages()
                 updateDialog("正在保存动态...", 95)
                 SupabaseModule.createPost(content, imageUrls, userId)
@@ -137,49 +143,69 @@ class CreatePostActivity : AppCompatActivity() {
         }
     }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private suspend fun uploadImages(): List<String> {
-        val resultUrls = mutableListOf<String>()
         val total = selectedImageUris.size
+        val progressMap = ConcurrentHashMap<Int, Int>()
         
-        for ((index, uri) in selectedImageUris.withIndex()) {
-            val countInfo = "(${index + 1}/$total)"
-            val mimeType = contentResolver.getType(uri)
-            val isVideo = mimeType?.startsWith("video/") == true
-            
-            var processedUri = uri
-            if (isVideo) {
-                // 压缩阶段：文字修正为“视频压缩中”
-                updateDialog("视频压缩中 $countInfo...", 0)
-                processedUri = VideoUtils.compressVideoIfNeeded(this, uri) { progress ->
-                    updateDialog("视频压缩中 $countInfo...", progress)
-                }
-            }
+        return coroutineScope {
+            selectedImageUris.mapIndexed { index, uri ->
+                async(Dispatchers.IO) {
+                    val mimeType = contentResolver.getType(uri)
+                    val isVideo = mimeType?.startsWith("video/") == true
+                    
+                    // --- 步骤 1: 压缩/处理 ---
+                    var processedUri = uri
+                    if (isVideo) {
+                        processedUri = VideoUtils.compressVideoIfNeeded(this@CreatePostActivity, uri) { p ->
+                            // 压缩进度占 40%
+                            progressMap[index] = (p * 0.4).toInt()
+                            updateGlobalProgress(progressMap, total)
+                        }
+                    } else {
+                        // 图片直接算压缩完成 10%
+                        progressMap[index] = 10
+                        updateGlobalProgress(progressMap, total)
+                    }
 
-            // 上传阶段：文字修正为“正在上传”
-            updateDialog("正在上传 $countInfo...", 30) // 此时由于无法获取上传精确进度，显示 30% 基准
-            
-            val fileBytes = withContext(Dispatchers.IO) {
-                if (isVideo) {
-                    VideoUtils.uriToByteArrayWithLimit(this@CreatePostActivity, processedUri)
-                } else {
-                    SupabaseModule.compressImage(this@CreatePostActivity, uri)
-                }
-            }
+                    // --- 步骤 2: 读取字节流 ---
+                    val fileBytes = if (isVideo) {
+                        VideoUtils.uriToByteArrayWithLimit(this@CreatePostActivity, processedUri)
+                    } else {
+                        SupabaseModule.compressImage(this@CreatePostActivity, uri)
+                    }
+                    
+                    // 读取完算 20% (如果是图片) 或基于压缩进度加 10%
+                    progressMap[index] = if(isVideo) (progressMap[index] ?: 40) + 10 else 20
+                    updateGlobalProgress(progressMap, total)
 
-            updateDialog("正在上传 $countInfo...", 70) // 数据读取完成，模拟进度到 70%
+                    // --- 步骤 3: 上传 ---
+                    val fileName = "${UUID.randomUUID()}.${if (isVideo) "mp4" else "jpg"}"
+                    val url = if (isVideo) {
+                        SupabaseModule.uploadPostVideo(fileBytes, fileName)
+                    } else {
+                        SupabaseModule.uploadPostImage(fileBytes, fileName)
+                    }
+                    
+                    // --- 步骤 4: 归档本地库 (仅视频) ---
+                    if (isVideo) {
+                        VideoCacheManager.saveOriginalVideoToLibrary(this@CreatePostActivity, url, uri)
+                    }
 
-            val fileName = "${UUID.randomUUID()}.${if (isVideo) "mp4" else "jpg"}"
-            val url = withContext(Dispatchers.IO) {
-                if (isVideo) {
-                    SupabaseModule.uploadPostVideo(fileBytes, fileName)
-                } else {
-                    SupabaseModule.uploadPostImage(fileBytes, fileName)
+                    // 任务彻底完成 100%
+                    progressMap[index] = 100
+                    updateGlobalProgress(progressMap, total)
+                    
+                    url
                 }
-            }
-            resultUrls.add(url)
-            updateDialog("上传完成 $countInfo", 100)
+            }.awaitAll()
         }
-        return resultUrls
+    }
+
+    private fun updateGlobalProgress(progressMap: Map<Int, Int>, total: Int) {
+        val currentSum = progressMap.values.sum()
+        val averageProgress = currentSum / total
+        updateDialog("正在极速发布中...", averageProgress.coerceIn(0, 99))
     }
 
     private fun sendSmsNotification() {

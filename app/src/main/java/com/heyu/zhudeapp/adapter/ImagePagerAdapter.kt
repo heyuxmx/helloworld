@@ -29,6 +29,10 @@ import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.databinding.ItemImagePagerBinding
 import com.heyu.zhudeapp.databinding.PagerItemVideoBinding
 import com.heyu.zhudeapp.util.VideoCacheManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(UnstableApi::class)
 class ImagePagerAdapter(private val mediaUrls: List<String>) :
@@ -67,19 +71,25 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
             player = null
         }
 
-        fun bind(url: String) {
+        fun bind(url: String, scope: CoroutineScope) {
             this.videoUrl = url
             if (player == null) {
                 val context = itemView.context
                 player = ExoPlayer.Builder(context).build().apply {
                     repeatMode = Player.REPEAT_MODE_ONE
                     
-                    val dataSourceFactory = VideoCacheManager.getCacheDataSourceFactory(context)
-                    val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
-                        .createMediaSource(MediaItem.fromUri(Uri.parse(url)))
-                    
-                    setMediaSource(mediaSource)
-                    prepare()
+                    // 核心逻辑：异步检查本地原视频库，优先使用本地路径
+                    scope.launch {
+                        val playUri = VideoCacheManager.getVideoPlayUri(context, url)
+                        val dataSourceFactory = VideoCacheManager.getCacheDataSourceFactory(context)
+                        val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+                            .createMediaSource(MediaItem.fromUri(playUri))
+                        
+                        withContext(Dispatchers.Main) {
+                            setMediaSource(mediaSource)
+                            prepare()
+                        }
+                    }
                     
                     addListener(object : Player.Listener {
                         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -122,8 +132,6 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
                         if (!isDragging && kotlin.math.abs(dx) > touchSlop) {
                             isDragging = true
                             isSeeking = true
-                            v.cancelLongPress()
-                            binding.progressTip.visibility = View.VISIBLE
                             v.parent.requestDisallowInterceptTouchEvent(true)
                             initialPosition = player?.currentPosition ?: 0L
                         }
@@ -141,6 +149,7 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
                             binding.progressTipText.text = formatTime(targetPosition)
                             val progressPercent = if (duration > 0) ((targetPosition.toDouble() / duration) * 100).toInt() else 0
                             binding.progressTipPercent.text = "${progressPercent}%"
+                            binding.progressTip.visibility = View.VISIBLE
                             true
                         } else false
                     }
@@ -266,11 +275,13 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
         }
     }
 
+    private val adapterScope = CoroutineScope(Dispatchers.Main)
+
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val mediaUrl = mediaUrls[position]
         val context = holder.itemView.context
         if (holder is VideoPagerViewHolder) {
-            holder.bind(mediaUrl)
+            holder.bind(mediaUrl, adapterScope)
             holder.setupLongClick(mediaUrl)
         }
         else if (holder is ImagePagerViewHolder) bindImage(holder, mediaUrl, context)
