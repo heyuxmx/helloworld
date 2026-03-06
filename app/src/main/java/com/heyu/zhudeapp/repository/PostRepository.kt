@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.database.AppDatabase
-import com.heyu.zhudeapp.di.SupabaseModule
+import com.heyu.zhudeapp.di.HeyuModule
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -22,7 +22,7 @@ class PostRepository(context: Context) {
     suspend fun refreshPosts() {
         try {
             // 使用优化后的嵌套查询一次性拿回所有数据
-            val remotePosts = SupabaseModule.getPosts()
+            val remotePosts = HeyuModule.getPosts()
             if (remotePosts.isNotEmpty()) {
                 // 更新本地缓存：存在的会被替换（更新），不存在的会被插入
                 postDao.insertPosts(remotePosts)
@@ -34,7 +34,7 @@ class PostRepository(context: Context) {
     }
 
     suspend fun deletePost(post: Post) {
-        SupabaseModule.deletePost(post)
+        HeyuModule.deletePost(post)
         postDao.deleteById(post.id)
     }
 }

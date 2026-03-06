@@ -9,7 +9,7 @@ import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
-import com.heyu.zhudeapp.di.SupabaseModule
+import com.heyu.zhudeapp.di.HeyuModule
 import com.heyu.zhudeapp.repository.PostRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -79,7 +79,7 @@ class PostViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun deleteComment(comment: Comment) {
         try {
-            SupabaseModule.deleteComment(comment.id)
+            HeyuModule.deleteComment(comment.id)
             fetchPosts()
         } catch (e: Exception) {
             _error.postValue("删除评论失败: ${e.message}")
@@ -89,7 +89,7 @@ class PostViewModel(application: Application) : AndroidViewModel(application) {
     fun createTextPost(content: String, userId: String) {
         viewModelScope.launch {
             try {
-                SupabaseModule.createPost(content, emptyList(), userId)
+                HeyuModule.createPost(content, emptyList(), userId)
                 repository.refreshPosts()
                 _postCreationSuccess.postValue(true)
             } catch (e: Exception) {
@@ -102,8 +102,8 @@ class PostViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val fileName = "${UUID.randomUUID()}.$fileExtension"
-                val imageUrl = SupabaseModule.uploadPostImage(imageBytes, fileName)
-                SupabaseModule.createPost(content, listOf(imageUrl), userId)
+                val imageUrl = HeyuModule.uploadPostImage(imageBytes, fileName)
+                HeyuModule.createPost(content, listOf(imageUrl), userId)
                 repository.refreshPosts()
                 _postCreationSuccess.postValue(true)
             } catch (e: Exception) {
@@ -115,7 +115,7 @@ class PostViewModel(application: Application) : AndroidViewModel(application) {
     fun addComment(postId: Long, commentText: String, userId: String) {
         viewModelScope.launch {
             try {
-                SupabaseModule.addComment(postId, commentText, userId)
+                HeyuModule.addComment(postId, commentText, userId)
                 clearCommentDraft(postId)
                 repository.refreshPosts()
             } catch (e: Exception) {

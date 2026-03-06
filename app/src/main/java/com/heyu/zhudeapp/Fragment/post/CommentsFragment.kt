@@ -14,12 +14,9 @@ import com.heyu.zhudeapp.adapter.CommentAdapter
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
 import com.heyu.zhudeapp.databinding.FragmentCommentsBinding
-import com.heyu.zhudeapp.di.SupabaseModule
+import com.heyu.zhudeapp.di.HeyuModule
 import com.heyu.zhudeapp.di.UserManager
 import com.heyu.zhudeapp.viewmodel.UserManagementViewModel
-import io.github.jan.supabase.postgrest.from
-import io.github.jan.supabase.postgrest.query.Columns
-import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.launch
 
 class CommentsFragment : BottomSheetDialogFragment() {
@@ -35,7 +32,12 @@ class CommentsFragment : BottomSheetDialogFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            post = it.getParcelable("post")!!
+            post = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                it.getParcelable("post", Post::class.java)!!
+            } else {
+                @Suppress("DEPRECATION")
+                it.getParcelable("post")!!
+            }
         }
     }
 
@@ -49,9 +51,11 @@ class CommentsFragment : BottomSheetDialogFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        userViewModel.fetchCurrentUser() // Fetch user profile
+        userViewModel.fetchCurrentUser()
         setupRecyclerView()
-        fetchComments()
+
+        // 初始显示 Post 中已携带的评论数据，无需额外网络请求
+        commentAdapter.updateComments(post.comments)
 
         binding.sendButton.setOnClickListener {
             val commentText = binding.commentInput.text.toString().trim()
@@ -72,27 +76,8 @@ class CommentsFragment : BottomSheetDialogFragment() {
     }
 
     private fun onCommentLongClicked(comment: Comment) {
-        // Only allow the author of the comment to delete it.
         if (comment.userId == UserManager.getCurrentUserId()) {
             showDeleteConfirmationDialog(comment)
-        }
-    }
-
-    private fun fetchComments() {
-        lifecycleScope.launch {
-            try {
-                val result = SupabaseModule.supabase.from("comments")
-                    .select(Columns.Companion.raw("*, author:users(*)")) {
-                        filter {
-                            eq("post_id", post.id)
-                        }
-                        order("created_at", Order.ASCENDING)
-                    }.decodeList<Comment>()
-
-                commentAdapter.updateComments(result)
-            } catch (e: Exception) {
-                Toast.makeText(context, "Failed to fetch comments: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
         }
     }
 
@@ -103,26 +88,17 @@ class CommentsFragment : BottomSheetDialogFragment() {
 
             if (currentUser == null) {
                 Toast.makeText(requireContext(), "正在获取用户信息，请稍后重试", Toast.LENGTH_SHORT).show()
-                userViewModel.fetchCurrentUser() // Re-fetch user if not available
+                userViewModel.fetchCurrentUser()
                 return@launch
             }
 
             try {
-                val newCommentForDb = Comment(
-                    postId = post.id,
-                    content = text,
-                    userId = userId!!
-                )
-
-                // Insert the comment into the database
-                SupabaseModule.supabase.from("comments").insert(newCommentForDb)
-
-                // Clear input and refresh the list from the server to get the complete data
+                val newComment = HeyuModule.addComment(post.id, text, userId!!)
                 binding.commentInput.text.clear()
-                fetchComments()
-
+                commentAdapter.addComment(newComment)
+                binding.commentsRecyclerView.scrollToPosition(commentAdapter.itemCount - 1)
             } catch (e: Exception) {
-                Toast.makeText(context, "Failed to post comment: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "发送失败: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -131,9 +107,7 @@ class CommentsFragment : BottomSheetDialogFragment() {
         AlertDialog.Builder(requireContext())
             .setTitle("删除评论")
             .setMessage("您确定要删除这条评论吗？")
-            .setPositiveButton("删除") { _, _ ->
-                deleteComment(comment)
-            }
+            .setPositiveButton("删除") { _, _ -> deleteComment(comment) }
             .setNegativeButton("取消", null)
             .show()
     }
@@ -141,13 +115,8 @@ class CommentsFragment : BottomSheetDialogFragment() {
     private fun deleteComment(comment: Comment) {
         lifecycleScope.launch {
             try {
-                SupabaseModule.supabase.from("comments").delete {
-                    filter {
-                        eq("id", comment.id)
-                    }
-                }
-                // Refresh the comments list after deletion
-                fetchComments()
+                HeyuModule.deleteComment(comment.id)
+                commentAdapter.removeComment(comment)
                 Toast.makeText(context, "评论已删除", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_SHORT).show()

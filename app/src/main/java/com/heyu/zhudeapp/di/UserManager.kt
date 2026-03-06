@@ -132,10 +132,20 @@ object UserManager {
     fun getCurrentUser(): Flow<UserProfile?> = flow {
         val userId = getCurrentUserId()
         if (userId != null) {
-            val userProfile = SupabaseModule.getUserById(userId)
-            emit(userProfile)
+            val userProfile = HeyuModule.getUserById(userId)
+            if (userProfile != null) {
+                emit(userProfile)
+            } else {
+                // Server unreachable but user ID is saved — emit fallback to avoid dialog loop
+                val fallbackName = when (userId) {
+                    XIAOGAO_USER_ID -> XIAOGAO_USER_NAME
+                    XIAOXU_USER_ID -> XIAOXU_USER_NAME
+                    else -> ""
+                }
+                emit(UserProfile(id = userId, username = fallbackName))
+            }
         } else {
-            emit(null) // Emit null if no user is selected.
+            emit(null) // No user selected — trigger identity selection dialog
         }
     }.flowOn(Dispatchers.IO)
 }

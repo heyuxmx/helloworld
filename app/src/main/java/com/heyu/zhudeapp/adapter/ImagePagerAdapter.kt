@@ -31,6 +31,7 @@ import com.heyu.zhudeapp.databinding.PagerItemVideoBinding
 import com.heyu.zhudeapp.util.VideoCacheManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -43,77 +44,81 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
         private const val VIEW_TYPE_VIDEO = 2
     }
 
+    private var sharedPlayer: ExoPlayer? = null
+    private var activeViewHolder: VideoPagerViewHolder? = null
+    private val adapterScope = CoroutineScope(Dispatchers.Main)
+
     class ImagePagerViewHolder(val binding: ItemImagePagerBinding) : RecyclerView.ViewHolder(binding.root)
 
-    class VideoPagerViewHolder(val binding: PagerItemVideoBinding) : RecyclerView.ViewHolder(binding.root) {
-        private var player: ExoPlayer? = null
+    inner class VideoPagerViewHolder(val binding: PagerItemVideoBinding) : RecyclerView.ViewHolder(binding.root), Player.Listener {
         private var isDragging = false
         private var isSeeking = false
         private var lastManualSeekTime = 0L
         private var videoUrl: String? = null
+        private var loadJob: Job? = null
 
         fun getIsDragging(): Boolean = isDragging
 
-        fun playVideo() {
-            player?.play()
-            binding.playPauseButton.setImageResource(R.drawable.ic_videostop)
-            binding.playPauseButton.tag = "playing"
-        }
-
-        fun pauseVideo() {
-            player?.pause()
-            binding.playPauseButton.setImageResource(R.drawable.ic_videoplay)
-            binding.playPauseButton.tag = "paused"
-        }
-
-        fun releasePlayer() {
-            player?.release()
-            player = null
-        }
-
-        fun bind(url: String, scope: CoroutineScope) {
-            this.videoUrl = url
-            if (player == null) {
-                val context = itemView.context
-                player = ExoPlayer.Builder(context).build().apply {
-                    repeatMode = Player.REPEAT_MODE_ONE
-                    
-                    // 核心逻辑：异步检查本地原视频库，优先使用本地路径
-                    scope.launch {
-                        val playUri = VideoCacheManager.getVideoPlayUri(context, url)
-                        val dataSourceFactory = VideoCacheManager.getCacheDataSourceFactory(context)
-                        val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
-                            .createMediaSource(MediaItem.fromUri(playUri))
-                        
-                        withContext(Dispatchers.Main) {
-                            setMediaSource(mediaSource)
-                            prepare()
-                        }
-                    }
-                    
-                    addListener(object : Player.Listener {
-                        override fun onPlaybackStateChanged(playbackState: Int) {
-                            when (playbackState) {
-                                Player.STATE_BUFFERING -> binding.videoProgressBar.visibility = View.VISIBLE
-                                Player.STATE_READY -> {
-                                    binding.videoProgressBar.visibility = View.GONE
-                                    updateVideoInfo()
-                                    if (binding.playPauseButton.tag == "playing") play()
-                                }
-                                else -> {}
-                            }
-                        }
-                    })
-                }
-                binding.playerView.player = player
-            }
+        fun attachPlayer(player: ExoPlayer, url: String) {
+            if (this.videoUrl == url && binding.playerView.player == player) return
             
-            initializeVideoControls()
-            startUpdatingSeekBar()
+            this.videoUrl = url
+            binding.playerView.player = player
+            binding.videoProgressBar.visibility = View.VISIBLE
+            
+            player.removeListener(this)
+            player.addListener(this)
+            
+            loadJob?.cancel()
+            loadJob = adapterScope.launch {
+                val context = itemView.context
+                val playUri = VideoCacheManager.getVideoPlayUri(context, url)
+                
+                withContext(Dispatchers.Main) {
+                    val dataSourceFactory = VideoCacheManager.getCacheDataSourceFactory(context)
+                    val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+                        .createMediaSource(MediaItem.fromUri(playUri))
+                    
+                    player.setMediaSource(mediaSource)
+                    player.prepare()
+                    player.playWhenReady = true
+                }
+            }
+            initializeVideoControls(player)
+            startUpdatingSeekBar(player)
         }
 
-        private fun initializeVideoControls() {
-            binding.playPauseButton.setOnClickListener { togglePlayPause() }
+        fun detachPlayer() {
+            loadJob?.cancel()
+            loadJob = null
+            binding.playerView.player?.removeListener(this)
+            binding.playerView.player = null
+            binding.videoProgressBar.visibility = View.GONE
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (activeViewHolder != this) return
+            when (playbackState) {
+                Player.STATE_BUFFERING -> binding.videoProgressBar.visibility = View.VISIBLE
+                Player.STATE_READY -> {
+                    binding.videoProgressBar.visibility = View.GONE
+                    updateVideoInfo()
+                    binding.playPauseButton.setImageResource(R.drawable.ic_videostop)
+                }
+                else -> {}
+            }
+        }
+
+        private fun initializeVideoControls(player: ExoPlayer) {
+            binding.playPauseButton.setOnClickListener { 
+                if (player.isPlaying) {
+                    player.pause()
+                    binding.playPauseButton.setImageResource(R.drawable.ic_videoplay)
+                } else {
+                    player.play()
+                    binding.playPauseButton.setImageResource(R.drawable.ic_videostop)
+                }
+            }
             
             val touchSlop = ViewConfiguration.get(binding.root.context).scaledTouchSlop
             var initialPosition = 0L
@@ -132,14 +137,16 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
                         if (!isDragging && kotlin.math.abs(dx) > touchSlop) {
                             isDragging = true
                             isSeeking = true
+                            v.cancelLongPress()
+                            binding.progressTip.visibility = View.VISIBLE
                             v.parent.requestDisallowInterceptTouchEvent(true)
-                            initialPosition = player?.currentPosition ?: 0L
+                            initialPosition = player.currentPosition
                         }
                         
                         if (isDragging) {
                             val screenWidth = binding.root.width
                             val percentage = dx / screenWidth
-                            val duration = player?.duration ?: 0L
+                            val duration = player.duration
                             
                             targetPosition = (initialPosition + (percentage * duration)).toLong()
                             targetPosition = targetPosition.coerceIn(0, duration)
@@ -157,9 +164,7 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
                         if (isDragging) {
                             binding.progressTip.visibility = View.GONE
                             lastManualSeekTime = System.currentTimeMillis()
-                            player?.seekTo(targetPosition)
-                            binding.seekBar.progress = targetPosition.toInt()
-                            binding.currentTimeText.text = formatTime(targetPosition)
+                            player.seekTo(targetPosition)
                             v.postDelayed({
                                 isDragging = false
                                 isSeeking = false
@@ -175,7 +180,7 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
                 override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
                     if (fromUser) {
                         binding.currentTimeText.text = formatTime(progress.toLong())
-                        player?.seekTo(progress.toLong())
+                        player.seekTo(progress.toLong())
                     }
                 }
                 override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) { isSeeking = true }
@@ -187,26 +192,25 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
             
             binding.videoController.visibility = View.VISIBLE
         }
-        
-        private fun togglePlayPause() {
-            if (player?.isPlaying == true) pauseVideo() else playVideo()
-        }
 
         fun updateVideoInfo() {
-            val duration = player?.duration ?: 0L
-            if (duration > 0) {
-                binding.seekBar.max = duration.toInt()
-                binding.totalTimeText.text = formatTime(duration)
+            sharedPlayer?.let { player ->
+                val duration = player.duration
+                if (duration > 0) {
+                    binding.seekBar.max = duration.toInt()
+                    binding.totalTimeText.text = formatTime(duration)
+                }
             }
         }
 
-        fun startUpdatingSeekBar() {
+        private fun startUpdatingSeekBar(player: ExoPlayer) {
             val updateRunnable = object : Runnable {
                 override fun run() {
                     try {
+                        if (activeViewHolder != this@VideoPagerViewHolder) return
                         val now = System.currentTimeMillis()
-                        if (player?.isPlaying == true && !isSeeking && !isDragging && (now - lastManualSeekTime > 1500)) {
-                            val currentPos = player?.currentPosition ?: 0L
+                        if (player.isPlaying && !isSeeking && !isDragging && (now - lastManualSeekTime > 1500)) {
+                            val currentPos = player.currentPosition
                             binding.seekBar.progress = currentPos.toInt()
                             binding.currentTimeText.text = formatTime(currentPos)
                         }
@@ -234,32 +238,6 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
                 true
             }
         }
-        
-        private fun showSaveDialog(context: Context, message: String, onSave: () -> Unit) {
-            val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
-            } else vibrator.vibrate(50)
-
-            AlertDialog.Builder(context)
-                .setMessage(message)
-                .setPositiveButton("保存") { d, _ -> onSave(); d.dismiss() }
-                .setNegativeButton("取消") { d, _ -> d.dismiss() }
-                .show()
-        }
-
-        private fun saveVideoToGallery(context: Context, videoUrl: String) {
-            try {
-                val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                val name = "ZhudApp_VID_${System.currentTimeMillis()}.mp4"
-                val req = DownloadManager.Request(Uri.parse(videoUrl))
-                    .setTitle(name).setMimeType("video/mp4")
-                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                    .setDestinationInExternalPublicDir(Environment.DIRECTORY_MOVIES, "ZhudApp/$name")
-                dm.enqueue(req)
-                Toast.makeText(context, "开始下载", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) { Toast.makeText(context, "失败", Toast.LENGTH_SHORT).show() }
-        }
     }
 
     override fun getItemViewType(position: Int): Int {
@@ -275,22 +253,53 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
         }
     }
 
-    private val adapterScope = CoroutineScope(Dispatchers.Main)
-
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val mediaUrl = mediaUrls[position]
         val context = holder.itemView.context
         if (holder is VideoPagerViewHolder) {
-            holder.bind(mediaUrl, adapterScope)
             holder.setupLongClick(mediaUrl)
         }
         else if (holder is ImagePagerViewHolder) bindImage(holder, mediaUrl, context)
     }
 
+    fun onPageSelected(position: Int, recyclerView: RecyclerView) {
+        val holder = recyclerView.findViewHolderForAdapterPosition(position)
+        
+        activeViewHolder?.detachPlayer()
+        activeViewHolder = null
+        
+        if (holder is VideoPagerViewHolder) {
+            if (sharedPlayer == null) {
+                sharedPlayer = ExoPlayer.Builder(holder.itemView.context).build().apply {
+                    repeatMode = Player.REPEAT_MODE_ONE
+                }
+            }
+            activeViewHolder = holder
+            holder.attachPlayer(sharedPlayer!!, mediaUrls[position])
+        } else {
+            sharedPlayer?.pause()
+        }
+    }
+
+    fun pauseActiveVideo() {
+        sharedPlayer?.pause()
+    }
+
+    fun releaseAll() {
+        activeViewHolder?.detachPlayer()
+        activeViewHolder = null
+        sharedPlayer?.stop()
+        sharedPlayer?.release()
+        sharedPlayer = null
+    }
+
     override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
         super.onViewRecycled(holder)
         if (holder is VideoPagerViewHolder) {
-            holder.releasePlayer()
+            if (activeViewHolder == holder) {
+                holder.detachPlayer()
+                activeViewHolder = null
+            }
         }
     }
 
@@ -339,5 +348,18 @@ class ImagePagerAdapter(private val mediaUrls: List<String>) :
             }
             Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun saveVideoToGallery(context: Context, videoUrl: String) {
+        try {
+            val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            val name = "ZhudApp_VID_${System.currentTimeMillis()}.mp4"
+            val req = DownloadManager.Request(Uri.parse(videoUrl))
+                .setTitle(name).setMimeType("video/mp4")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalPublicDir(Environment.DIRECTORY_MOVIES, "ZhudApp/$name")
+            dm.enqueue(req)
+            Toast.makeText(context, "开始下载", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) { Toast.makeText(context, "失败", Toast.LENGTH_SHORT).show() }
     }
 }

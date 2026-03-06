@@ -16,7 +16,7 @@ import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.adapter.SelectedImagesAdapter
 import com.heyu.zhudeapp.databinding.ActivityCreatePostBinding
-import com.heyu.zhudeapp.di.SupabaseModule
+import com.heyu.zhudeapp.di.HeyuModule
 import com.heyu.zhudeapp.di.UserManager
 import com.heyu.zhudeapp.util.VideoUtils
 import com.heyu.zhudeapp.util.VideoCacheManager
@@ -131,7 +131,7 @@ class CreatePostActivity : AppCompatActivity() {
                 // 原视频本地库同步逻辑 + 并发上传
                 val imageUrls = uploadImages()
                 updateDialog("正在保存动态...", 95)
-                SupabaseModule.createPost(content, imageUrls, userId)
+                HeyuModule.createPost(content, imageUrls, userId)
                 progressDialog?.dismiss()
                 Toasty.success(this@CreatePostActivity, getString(R.string.publish_success)).show()
                 sendSmsNotification()
@@ -172,7 +172,7 @@ class CreatePostActivity : AppCompatActivity() {
                     val fileBytes = if (isVideo) {
                         VideoUtils.uriToByteArrayWithLimit(this@CreatePostActivity, processedUri)
                     } else {
-                        SupabaseModule.compressImage(this@CreatePostActivity, uri)
+                        HeyuModule.compressImage(this@CreatePostActivity, uri)
                     }
                     
                     // 读取完算 20% (如果是图片) 或基于压缩进度加 10%
@@ -182,9 +182,9 @@ class CreatePostActivity : AppCompatActivity() {
                     // --- 步骤 3: 上传 ---
                     val fileName = "${UUID.randomUUID()}.${if (isVideo) "mp4" else "jpg"}"
                     val url = if (isVideo) {
-                        SupabaseModule.uploadPostVideo(fileBytes, fileName)
+                        HeyuModule.uploadPostVideo(fileBytes, fileName)
                     } else {
-                        SupabaseModule.uploadPostImage(fileBytes, fileName)
+                        HeyuModule.uploadPostImage(fileBytes, fileName)
                     }
                     
                     // --- 步骤 4: 归档本地库 (仅视频) ---

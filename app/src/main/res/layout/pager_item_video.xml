@@ -58,6 +58,7 @@
         android:padding="8dp"
         android:visibility="gone">
 
+        <!-- Play button - Using ImageButton to match the adapter code -->
         <ImageButton
             android:id="@+id/playPauseButton"
             android:layout_width="40dp"

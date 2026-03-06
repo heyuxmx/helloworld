@@ -38,6 +38,14 @@ class CommentAdapter(
         notifyItemInserted(comments.size - 1)
     }
 
+    fun removeComment(comment: Comment) {
+        val index = comments.indexOfFirst { it.id == comment.id }
+        if (index != -1) {
+            comments.removeAt(index)
+            notifyItemRemoved(index)
+        }
+    }
+
     inner class CommentViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val contentTextView: TextView = itemView.findViewById(R.id.commentText)
         private val authorTextView: TextView = itemView.findViewById(R.id.commentUserName)

@@ -353,10 +353,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     withContext(Dispatchers.Main) { showUpdateDialog(updateInfo.downloadUrl) }
                 }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "检查更新失败: ${e.message}", Toast.LENGTH_LONG).show()
-                }
-                e.printStackTrace()
+                e.printStackTrace() // 更新检查失败时静默处理，不打扰用户
             }
         }
     }

@@ -14,3 +14,11 @@
 .cxx
 local.properties
 supabase.env
+
+# Server
+server/.env
+server/node_modules/
+server/uploads/
+
+# Claude
+.claude/

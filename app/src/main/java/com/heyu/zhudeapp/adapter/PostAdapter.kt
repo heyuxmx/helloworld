@@ -24,7 +24,7 @@ import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.activity.PostImagePagerActivity
 import com.heyu.zhudeapp.data.Comment
 import com.heyu.zhudeapp.data.Post
-import com.heyu.zhudeapp.di.SupabaseModule
+import com.heyu.zhudeapp.di.HeyuModule
 import com.heyu.zhudeapp.util.GridSpacingItemDecoration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -211,7 +211,7 @@ class PostAdapter(
                 }
                 lifecycleScope.launch {
                     try {
-                        SupabaseModule.likePost(post.id)
+                        HeyuModule.likePost(post.id)
                     } catch (e: Exception) {
                         likeCountText.text = currentLikes.toString()
                         Toast.makeText(itemView.context, "点赞失败", Toast.LENGTH_SHORT).show()

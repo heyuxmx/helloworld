@@ -37,13 +37,13 @@ android {
         applicationId = "com.heyu.zhudeapp"
         minSdk = 24
         targetSdk = 34
-        versionCode = 8 // 增加版本号以确保覆盖安装成功
-        versionName = "1.0.7"
+        versionCode = 9 // 增加版本号以确保覆盖安装成功
+        versionName = "1.0.8"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
-        buildConfigField("String", "UPDATE_JSON_URL", "\"https://bvgtzgxscnqhugjirgzp.supabase.co/storage/v1/object/public/app-releases/update-check_xiaogao.json\"")
+        buildConfigField("String", "UPDATE_JSON_URL", "\"https://marth-nongerminative-hedonistically.ngrok-free.dev/app-releases/update-check_xiaogao.json\"")
         buildConfigField("String", "XIAOXU_ID", "\"xiaoxu_placeholder_id\"")
     }
 
@@ -86,7 +86,6 @@ android {
 // 移除之前的 exclude(group = "androidx.profileinstaller") 块，解决 INSTALL_BASELINE_PROFILE_FAILED 报错
 
 dependencies {
-    implementation(platform("io.github.jan-tennert.supabase:bom:2.5.3"))
     implementation("androidx.core:core-ktx:1.13.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
@@ -95,13 +94,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     implementation("androidx.navigation:navigation-fragment-ktx:2.7.7")
     implementation("androidx.navigation:navigation-ui-ktx:2.7.7")
-    implementation("com.google.firebase:firebase-storage-ktx:21.0.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-    implementation("io.github.jan-tennert.supabase:postgrest-kt")
-    implementation("io.github.jan-tennert.supabase:storage-kt")
     implementation("io.ktor:ktor-client-android:2.3.11")
     implementation("io.ktor:ktor-client-content-negotiation:2.3.11")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.11")
@@ -110,8 +106,6 @@ dependencies {
     ksp("com.github.bumptech.glide:ksp:4.16.0")
     implementation(platform("com.google.firebase:firebase-bom:33.0.0"))
     implementation("com.google.firebase:firebase-analytics-ktx")
-    implementation("com.google.firebase:firebase-messaging-ktx")
-    implementation("com.google.firebase:firebase-inappmessaging-display-ktx")
     implementation("com.github.GrenderG:Toasty:1.5.2")
     implementation("com.airbnb.android:lottie:6.4.0")
     implementation("androidx.fragment:fragment-ktx:1.6.2")
@@ -120,9 +114,6 @@ dependencies {
     implementation("com.github.chrisbanes:PhotoView:2.3.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("de.hdodenhof:circleimageview:3.1.0")
-    
-    // Aliyun OSS SDK
-    implementation("com.aliyun.dpa:oss-android-sdk:2.9.21")
     
     // Video Transcoding Library
     implementation("com.otaliastudios:transcoder:0.10.5")

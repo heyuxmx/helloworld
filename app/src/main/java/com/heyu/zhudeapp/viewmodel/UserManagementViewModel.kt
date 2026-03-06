@@ -7,7 +7,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.heyu.zhudeapp.data.UserProfile
-import com.heyu.zhudeapp.di.SupabaseModule
+import com.heyu.zhudeapp.di.HeyuModule
 import com.heyu.zhudeapp.di.UserManager
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
@@ -40,8 +40,8 @@ class UserManagementViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             try {
                 val userId = _currentUser.value?.id ?: throw IllegalStateException("User ID is not available.")
-                val imageBytes = SupabaseModule.compressImage(getApplication(), uri)
-                SupabaseModule.uploadAvatar(userId, imageBytes)
+                val imageBytes = HeyuModule.compressImage(getApplication(), uri)
+                HeyuModule.uploadAvatar(userId, imageBytes)
                 fetchCurrentUser()
                 _uploadSuccess.postValue(true)
             } catch (e: Exception) {
@@ -54,7 +54,7 @@ class UserManagementViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             try {
                 val userId = _currentUser.value?.id ?: throw IllegalStateException("User ID is not available.")
-                SupabaseModule.updateUsername(userId, newUsername)
+                HeyuModule.updateUsername(userId, newUsername)
                 fetchCurrentUser()
             } catch (e: Exception) {
                 _error.postValue("Failed to update username: ${e.message}")
