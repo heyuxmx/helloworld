@@ -102,13 +102,13 @@ class PostImagesAdapter(
         fun bind(mediaUrl: String, mediaUris: List<String>, position: Int) {
             val context: Context = view.context
 
+            // 服务器上传视频时会同步生成 _thumb.jpg，用它作封面，比 Glide 解析远程视频快得多
+            val thumbUrl = mediaUrl.replace(Regex("\\.mp4$", RegexOption.IGNORE_CASE), "_thumb.jpg")
             Glide.with(context)
-                .asBitmap()
-                .load(mediaUrl)
+                .load(thumbUrl)
                 .centerCrop()
                 .placeholder(R.color.grey_placeholder)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
-                .thumbnail(0.1f)
                 .error(R.drawable.image_placeholder)
                 .into(videoView)
             

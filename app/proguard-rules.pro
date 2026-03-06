@@ -45,3 +45,9 @@
 
 -keep class io.ktor.client.engine.android.** { *; }
 -dontwarn io.ktor.**
+
+# OkHttp3 (via Glide okhttp3-integration) - conscrypt is optional TLS provider
+-dontwarn org.conscrypt.Conscrypt
+-dontwarn org.conscrypt.OpenSSLProvider
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**

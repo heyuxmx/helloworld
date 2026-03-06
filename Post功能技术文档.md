@@ -23,7 +23,7 @@ ZhuDeApp是一个Android社交应用，其中Post（动态）功能是核心功�
 
 #### 工具层
 - **VideoUtils**: 视频处理工具类
-- **SupabaseModule**: 后端服务接口（数据存储、上传等）
+- **HeyuModule**: 后端服务接口（数据存储、上传等）
 
 ## 3. 动态图片视频排版机制
 

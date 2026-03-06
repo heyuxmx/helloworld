@@ -32,17 +32,7 @@
         app:indicatorColor="@color/lightblue"
         app:trackColor="#EEEEEE"
         app:trackThickness="8dp"
-        app:trackCornerRadius="4dp" />
-
-    <TextView
-        android:id="@+id/dialog_percentage_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="end"
-        android:layout_marginTop="4dp"
-        android:text="0%"
-        android:textColor="@color/lightblue"
-        android:textSize="12sp"
-        android:textStyle="bold" />
+        app:trackCornerRadius="4dp"
+        android:indeterminate="true" />
 
 </LinearLayout>

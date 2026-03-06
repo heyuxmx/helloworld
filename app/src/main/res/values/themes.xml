@@ -1,15 +1,41 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+    <!-- ===== 默认主题 ===== -->
     <style name="Base.Theme.ZhudeApp" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
         <item name="colorPrimary">@color/lightblue</item>
         <item name="materialAlertDialogTheme">@style/App.Theme.AlertDialog</item>
+        <item name="toolbarBackgroundColor">@color/lightblue</item>
+        <item name="postCardBackground">#40FFFFFF</item>
+        <item name="interactionTextColor">@color/black</item>
     </style>
-
     <style name="Theme.ZhudeApp" parent="Base.Theme.ZhudeApp" />
 
     <!-- Custom AlertDialog theme -->
     <style name="App.Theme.AlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
         <item name="colorPrimary">@color/lightblue</item>
+    </style>
+
+    <!-- ===== 科技色主题 ===== -->
+    <style name="Theme.ZhudeApp.Tech" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/tech_primary</item>
+        <item name="colorSecondary">@color/tech_primary</item>
+        <item name="colorSurface">@color/tech_surface</item>
+        <item name="colorSurfaceVariant">@color/tech_surface_variant</item>
+        <item name="android:colorBackground">@color/tech_background</item>
+        <item name="android:textColorPrimary">@color/tech_on_background</item>
+        <item name="android:textColorSecondary">@color/tech_on_surface</item>
+        <item name="android:textColorHint">@color/tech_on_surface</item>
+        <item name="colorOnSurface">@color/tech_on_background</item>
+        <item name="colorOnBackground">@color/tech_on_background</item>
+        <item name="materialAlertDialogTheme">@style/App.Theme.AlertDialog.Tech</item>
+        <item name="toolbarBackgroundColor">@color/tech_toolbar</item>
+        <item name="postCardBackground">@color/tech_card</item>
+        <item name="interactionTextColor">@color/tech_primary</item>
+        <!-- 强制深色模式 -->
+        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
+    </style>
+
+    <style name="App.Theme.AlertDialog.Tech" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorPrimary">@color/tech_primary</item>
+        <item name="colorSurface">@color/tech_surface</item>
     </style>
 </resources>

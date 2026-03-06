@@ -13,6 +13,39 @@
         android:orientation="vertical"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
+        <!-- 后台上传状态条：仅在视频上传进行中/完成/失败时可见 -->
+        <LinearLayout
+            android:id="@+id/upload_banner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#CC1A1A2E"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="10dp"
+            android:visibility="gone">
+
+            <ProgressBar
+                android:id="@+id/upload_banner_progress"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:indeterminateTint="@color/lightblue"
+                android:layout_marginEnd="10dp" />
+
+            <TextView
+                android:id="@+id/upload_banner_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="#FFFFFFFF"
+                android:textSize="13sp"
+                android:text="动态发布中..." />
+
+        </LinearLayout>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

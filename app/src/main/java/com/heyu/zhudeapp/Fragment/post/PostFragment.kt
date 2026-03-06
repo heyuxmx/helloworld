@@ -32,6 +32,7 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.heyu.zhudeapp.activity.CreatePostActivity
 import com.heyu.zhudeapp.adapter.PostAdapter
+import com.heyu.zhudeapp.di.UploadManager
 import com.heyu.zhudeapp.adapter.OnCommentInteractionListener
 import com.heyu.zhudeapp.adapter.OnCommentLongClickListener
 import com.heyu.zhudeapp.adapter.OnImageSaveListener
@@ -102,6 +103,7 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         setupRecyclerViewTouchListener()
 
         loadPosts()
+        observeUploadState()
 
         onBackPressedCallback = object : OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
@@ -283,6 +285,46 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         binding.focusCommentInput.requestFocus()
         val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
         imm?.showSoftInput(binding.focusCommentInput, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun observeUploadState() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            UploadManager.state.collect { state ->
+                val banner = _binding?.uploadBanner ?: return@collect
+                val bannerText = _binding?.uploadBannerText ?: return@collect
+                val bannerProgress = _binding?.uploadBannerProgress ?: return@collect
+
+                when (state) {
+                    is UploadManager.UploadState.Uploading -> {
+                        bannerText.text = state.message
+                        bannerProgress.visibility = View.VISIBLE
+                        banner.visibility = View.VISIBLE
+                    }
+                    is UploadManager.UploadState.Success -> {
+                        bannerText.text = "动态已发布！"
+                        bannerProgress.visibility = View.GONE
+                        banner.visibility = View.VISIBLE
+                        loadPosts()
+                        // 2秒后自动隐藏
+                        kotlinx.coroutines.delay(2000)
+                        _binding?.uploadBanner?.visibility = View.GONE
+                        UploadManager.resetToIdle()
+                    }
+                    is UploadManager.UploadState.Failure -> {
+                        bannerText.text = "发布失败：${state.message}"
+                        bannerProgress.visibility = View.GONE
+                        banner.visibility = View.VISIBLE
+                        // 4秒后自动隐藏
+                        kotlinx.coroutines.delay(4000)
+                        _binding?.uploadBanner?.visibility = View.GONE
+                        UploadManager.resetToIdle()
+                    }
+                    UploadManager.UploadState.Idle -> {
+                        banner.visibility = View.GONE
+                    }
+                }
+            }
+        }
     }
 
     private fun observeNavigation() {

@@ -3,6 +3,9 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static');
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 const UPLOADS_DIR = path.join(__dirname, '../../uploads');
 const ALLOWED_BUCKETS = ['post-images', 'avatars'];
@@ -34,10 +37,45 @@ const upload = multer({
 });
 
 // POST /api/storage/upload/:bucket — 上传文件，返回公开 URL
-router.post('/upload/:bucket', upload.single('file'), (req, res) => {
+// 若上传的是视频，额外生成 _thumb.jpg 缩略图（取第1秒帧）
+router.post('/upload/:bucket', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-  const publicUrl = `${process.env.BASE_URL}/storage/${req.params.bucket}/${req.file.filename}`;
+  const bucket = req.params.bucket;
+  const publicUrl = `${process.env.BASE_URL}/storage/${bucket}/${req.file.filename}`;
+
+  const isVideo = req.file.mimetype && req.file.mimetype.startsWith('video/');
+  if (isVideo) {
+    const thumbFilename = req.file.filename.replace(/\.mp4$/i, '_thumb.jpg');
+    const thumbPath = path.join(UPLOADS_DIR, bucket, thumbFilename);
+    try {
+      await new Promise((resolve, reject) => {
+        ffmpeg(req.file.path)
+          .screenshots({
+            timestamps: ['00:00:01'],
+            filename: thumbFilename,
+            folder: path.join(UPLOADS_DIR, bucket),
+            size: '480x?',
+          })
+          .on('end', resolve)
+          .on('error', (err) => {
+            // 若第1秒取帧失败（视频较短），退回取第0秒
+            ffmpeg(req.file.path)
+              .screenshots({
+                timestamps: ['00:00:00.001'],
+                filename: thumbFilename,
+                folder: path.join(UPLOADS_DIR, bucket),
+                size: '480x?',
+              })
+              .on('end', resolve)
+              .on('error', reject);
+          });
+      });
+    } catch (e) {
+      console.error('缩略图生成失败（非致命）:', e.message);
+    }
+  }
+
   res.json({ url: publicUrl });
 });
 

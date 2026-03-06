@@ -7,6 +7,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import com.heyu.zhudeapp.adapter.ImagePagerAdapter
 import com.heyu.zhudeapp.databinding.ActivityPostImagePagerBinding
+import com.heyu.zhudeapp.util.ThemeManager
 
 class PostImagePagerActivity : AppCompatActivity() {
 
@@ -14,6 +15,7 @@ class PostImagePagerActivity : AppCompatActivity() {
     private lateinit var pagerAdapter: ImagePagerAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        ThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
         binding = ActivityPostImagePagerBinding.inflate(layoutInflater)
         setContentView(binding.root)

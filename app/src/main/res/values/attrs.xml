@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 顶栏/抽屉头部背景色，各主题独立设置 -->
+    <attr name="toolbarBackgroundColor" format="color" />
+    <!-- 动态卡片背景色，默认主题半透明白、科技色深蓝 -->
+    <attr name="postCardBackground" format="color" />
+    <!-- 点赞、评论数文字颜色 -->
+    <attr name="interactionTextColor" format="color" />
+</resources>

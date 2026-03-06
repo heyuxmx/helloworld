@@ -1,0 +1,33 @@
+<service>
+	<id>zhudeappserver.exe</id>
+	<name>ZhuDeAppServer</name>
+	<description>ZhuDe App Node.js 后端服务</description>
+	<executable>C:\Program Files\nodejs\node.exe</executable>
+	<argument>--harmony</argument>
+	<argument>E:\AndroidStudioProject\zhudeApp\server\node_modules\node-windows\lib\wrapper.js</argument>
+	<argument>--file</argument>
+	<argument>E:\AndroidStudioProject\zhudeApp\server\src\index.js</argument>
+	<argument>--scriptoptions=</argument>
+	<argument>--log</argument>
+	<argument>ZhuDeAppServer wrapper</argument>
+	<argument>--grow</argument>
+	<argument>0.25</argument>
+	<argument>--wait</argument>
+	<argument>2</argument>
+	<argument>--maxrestarts</argument>
+	<argument>5</argument>
+	<argument>--abortonerror</argument>
+	<argument>n</argument>
+	<argument>--stopparentfirst</argument>
+	<argument>undefined</argument>
+	<logmode>rotate</logmode>
+	<stoptimeout>30sec</stoptimeout>
+	<env name="PORT" value="3000"/>
+	<env name="NODE_ENV" value="production"/>
+	<serviceaccount>
+		<domain>小本笔</domain>
+		<user>LocalSystem</user>
+		<password></password>
+	</serviceaccount>
+	<workingdirectory>E:\AndroidStudioProject\zhudeApp\server</workingdirectory>
+</service>

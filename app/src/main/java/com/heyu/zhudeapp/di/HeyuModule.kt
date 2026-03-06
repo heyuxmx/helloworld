@@ -1,3 +1,5 @@
+@file:Suppress("OPT_IN_USAGE")
+
 package com.heyu.zhudeapp.di
 
 import android.content.Context
@@ -14,6 +16,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
@@ -46,6 +49,9 @@ object HeyuModule {
     val httpClient = HttpClient(Android) {
         install(ContentNegotiation) {
             json(lenientJson)
+        }
+        defaultRequest {
+            headers.append("ngrok-skip-browser-warning", "1")
         }
     }
 
@@ -164,24 +170,59 @@ object HeyuModule {
         return response.url
     }
 
-    fun compressImage(context: Context, uri: Uri, maxDimension: Int = 1080, quality: Int = 75): ByteArray {
+    fun compressImage(context: Context, uri: Uri, maxDimension: Int = 1080, quality: Int = 72): ByteArray {
         val orientation = context.contentResolver.openInputStream(uri)?.use {
             ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
         } ?: ExifInterface.ORIENTATION_NORMAL
-        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+
+        // 先读取原始尺寸
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+
+        // 计算 inSampleSize，避免将超大图片完整加载进内存
+        var inSampleSize = 1
+        val srcW = bounds.outWidth
+        val srcH = bounds.outHeight
+        if (srcW > maxDimension || srcH > maxDimension) {
+            val halfW = srcW / 2
+            val halfH = srcH / 2
+            while (halfW / inSampleSize >= maxDimension && halfH / inSampleSize >= maxDimension) {
+                inSampleSize *= 2
+            }
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply { this.inSampleSize = inSampleSize }
         val matrix = Matrix()
         when (orientation) {
             ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
             ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
             ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
         }
-        val scaledBitmap = context.contentResolver.openInputStream(uri)?.use {
-            val sourceBitmap = BitmapFactory.decodeStream(it)
-            Bitmap.createBitmap(sourceBitmap, 0, 0, sourceBitmap.width, sourceBitmap.height, matrix, true)
+
+        val result = context.contentResolver.openInputStream(uri)?.use { stream ->
+            val sampled = BitmapFactory.decodeStream(stream, null, decodeOptions)
+                ?: return@use null
+
+            // 旋转校正
+            val rotated = if (!matrix.isIdentity) {
+                Bitmap.createBitmap(sampled, 0, 0, sampled.width, sampled.height, matrix, true)
+                    .also { if (it !== sampled) sampled.recycle() }
+            } else sampled
+
+            // 按 maxDimension 精确缩放
+            val w = rotated.width
+            val h = rotated.height
+            val final = if (w > maxDimension || h > maxDimension) {
+                val scale = maxDimension.toFloat() / maxOf(w, h)
+                Bitmap.createScaledBitmap(rotated, (w * scale).toInt(), (h * scale).toInt(), true)
+                    .also { if (it !== rotated) rotated.recycle() }
+            } else rotated
+
+            val out = ByteArrayOutputStream()
+            final.compress(Bitmap.CompressFormat.JPEG, quality, out)
+            final.recycle()
+            out.toByteArray()
         }
-        val outputStream = ByteArrayOutputStream()
-        scaledBitmap?.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
-        return outputStream.toByteArray()
+        return result ?: ByteArray(0)
     }
 }

@@ -10,10 +10,14 @@ import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AnimationUtils
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.ViewFlipper
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -35,7 +39,6 @@ import com.canhub.cropper.CropImageContractOptions
 import com.canhub.cropper.CropImageOptions
 import com.canhub.cropper.CropImageView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.navigation.NavigationView
 import com.heyu.zhudeapp.BuildConfig
 import com.heyu.zhudeapp.Fragment.countdown.DatecountFragment
 import com.heyu.zhudeapp.Fragment.post.PostFragment
@@ -45,6 +48,7 @@ import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.data.UpdateInfo
 import com.heyu.zhudeapp.data.UserProfile
 import com.heyu.zhudeapp.databinding.ActivityMainBinding
+import com.heyu.zhudeapp.util.ThemeManager
 import com.heyu.zhudeapp.viewmodel.MainViewModel
 import com.heyu.zhudeapp.viewmodel.UserManagementViewModel
 import de.hdodenhof.circleimageview.CircleImageView
@@ -55,19 +59,27 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
-class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
+class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private val mainViewModel: MainViewModel by viewModels()
     private val userManagementViewModel: UserManagementViewModel by viewModels()
     private lateinit var drawerLayout: DrawerLayout
     private var currentFragment: Fragment? = null
 
+    // 自定义抽屉子视图
+    private lateinit var drawerFlipper: ViewFlipper
+    private lateinit var navHeaderProfileImage: CircleImageView
+    private lateinit var navHeaderUsername: TextView
+    private lateinit var editUsernameButton: ImageButton
+    private lateinit var themeCheckDefault: ImageView
+    private lateinit var themeCheckTech: ImageView
+
     companion object {
         const val EXTRA_CHANGE_AVATAR_REQUEST = "EXTRA_CHANGE_AVATAR_REQUEST"
     }
 
     private val requestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (!isGranted) {
                 Toast.makeText(this, "发送短信的权限对于通知功能至关重要", Toast.LENGTH_LONG).show()
             }
@@ -82,8 +94,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 aspectRatioY = 1,
                 fixAspectRatio = true
             )
-            val cropContractOptions = CropImageContractOptions(null, cropOptions)
-            cropImageLauncher.launch(cropContractOptions)
+            cropImageLauncher.launch(CropImageContractOptions(null, cropOptions))
         }
     }
 
@@ -94,18 +105,18 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 Toast.makeText(this, "正在上传头像...", Toast.LENGTH_SHORT).show()
             }
         } else {
-            val exception = result.error
-            Toast.makeText(this, "图片裁剪失败: ${exception?.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "图片裁剪失败: ${result.error?.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        ThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
             binding.toolbar.updateLayoutParams<ViewGroup.MarginLayoutParams> { topMargin = insets.top }
             binding.bottomNavigation.updatePadding(bottom = insets.bottom)
@@ -115,49 +126,20 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         setSupportActionBar(binding.toolbar)
         drawerLayout = binding.drawerLayout
 
-        val onBackPressedCallback = object : OnBackPressedCallback(false) {
-            override fun handleOnBackPressed() {
-                drawerLayout.closeDrawer(GravityCompat.START)
-            }
-        }
-        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
-
-        val toggle = object : ActionBarDrawerToggle(
-            this, drawerLayout, binding.toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close
-        ) {
-            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
-                super.onDrawerSlide(drawerView, slideOffset)
-                onBackPressedCallback.isEnabled = slideOffset > 0
-            }
-        }
-        drawerLayout.addDrawerListener(toggle)
-        toggle.syncState()
-
-        binding.navView.setNavigationItemSelectedListener(this)
-
-        binding.bottomNavigation.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.tab_second -> showFragment(PostFragment::class.java)
-                R.id.tab_third -> showFragment(DatecountFragment::class.java)
-                R.id.tab_fourth -> showFragment(MineFragment::class.java)
-                else -> showFragment(WelcomeFragment::class.java) // Default to WelcomeFragment
-            }
-            true
-        }
+        setupDrawerViews()
+        setupDrawerToggle()
+        setupBottomNavigation()
 
         if (savedInstanceState == null) {
             showFragment(WelcomeFragment::class.java)
         }
 
         userManagementViewModel.currentUser.observe(this) { user ->
-            if (user?.username.isNullOrEmpty()) {
-                showUserSelectionDialog()
-            }
+            if (user?.username.isNullOrEmpty()) showUserSelectionDialog()
             updateNavHeader(user)
         }
         userManagementViewModel.fetchCurrentUser()
 
-        handleIntent(intent)
         supportFragmentManager.setFragmentResultListener("profile_updated", this) { _, _ ->
             userManagementViewModel.fetchCurrentUser()
             Toast.makeText(this, "用户资料已更新", Toast.LENGTH_SHORT).show()
@@ -165,93 +147,128 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         checkForUpdates()
         requestSmsPermission()
-        checkUpdateAnnouncement() // 检查并显示更新公告
+        checkUpdateAnnouncement()
     }
 
-    /**
-     * 检查是否需要显示版本更新公告
-     */
-    private fun checkUpdateAnnouncement() {
-        val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        val lastSeenVersion = prefs.getInt("last_seen_version", 0)
-        val currentVersion = BuildConfig.VERSION_CODE
+    private fun setupDrawerViews() {
+        // 找到 drawer_content.xml 中的各视图（<include> 后直接可通过 findViewById 访问）
+        drawerFlipper = findViewById(R.id.drawer_flipper)
+        navHeaderProfileImage = findViewById(R.id.nav_header_profile_image)
+        navHeaderUsername = findViewById(R.id.nav_header_username)
+        editUsernameButton = findViewById(R.id.edit_username_button)
+        themeCheckDefault = findViewById(R.id.theme_check_default)
+        themeCheckTech = findViewById(R.id.theme_check_tech)
 
-        if (currentVersion > lastSeenVersion) {
-            showNewVersionFeaturesDialog()
-            // 更新记录的版本号，确保该版本只弹一次
-            prefs.edit().putInt("last_seen_version", currentVersion).apply()
+        // 主菜单：主页
+        findViewById<LinearLayout>(R.id.drawer_item_home).setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+        }
+
+        // 主菜单：设置 → 滑入设置页
+        findViewById<LinearLayout>(R.id.drawer_item_settings).setOnClickListener {
+            openSettingsPanel()
+        }
+
+        // 主菜单：退出登录
+        findViewById<LinearLayout>(R.id.drawer_item_logout).setOnClickListener {
+            userManagementViewModel.logout()
+            drawerLayout.closeDrawer(GravityCompat.START)
+        }
+
+        // 设置页：返回按钮
+        findViewById<ImageButton>(R.id.settings_back_button).setOnClickListener {
+            closeSettingsPanel()
+        }
+
+        // 设置页：主题选项
+        updateThemeCheckmarks()
+        findViewById<LinearLayout>(R.id.theme_option_default).setOnClickListener {
+            applyAndSaveTheme(ThemeManager.THEME_DEFAULT)
+        }
+        findViewById<LinearLayout>(R.id.theme_option_tech).setOnClickListener {
+            applyAndSaveTheme(ThemeManager.THEME_TECH)
         }
     }
 
-    /**
-     * 显示新版本功能弹窗
-     */
-    private fun showNewVersionFeaturesDialog() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("🚀 发现新版本特性")
-            .setMessage(
-                "本次更新带飞你的体验：\n\n" +
-                "1️⃣ 【退出登录】功能上线，支持随时切号或重新登录。\n" +
-                "2️⃣ 【极致刷图】引入1GB暴力本地缓存，图片加载速度提升300%，滑得再快也不卡顿。\n" +
-                "3️⃣ 【原像素视频】支持保存原像素视频到本地库，看过的视频 0 毫秒秒开，画质拉满。"
-            )
-            .setPositiveButton("知道了，这就去爽") { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setCancelable(false)
-            .show()
+    private fun openSettingsPanel() {
+        drawerFlipper.inAnimation = AnimationUtils.loadAnimation(this, R.anim.slide_in_from_right)
+        drawerFlipper.outAnimation = AnimationUtils.loadAnimation(this, R.anim.slide_out_to_left)
+        drawerFlipper.displayedChild = 1
     }
 
-    private fun requestSmsPermission() {
-        when {
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.SEND_SMS
-            ) == PackageManager.PERMISSION_GRANTED -> {
-                // Permission is already granted.
-            }
-            shouldShowRequestPermissionRationale(Manifest.permission.SEND_SMS) -> {
-                MaterialAlertDialogBuilder(this)
-                    .setTitle("需要权限")
-                    .setMessage("此应用需要发送短信的权限来通知对方用户。")
-                    .setPositiveButton("好的") { _, _ ->
-                        requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-                    }
-                    .show()
-            }
-            else -> {
-                requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+    private fun closeSettingsPanel() {
+        drawerFlipper.inAnimation = AnimationUtils.loadAnimation(this, android.R.anim.slide_in_left)
+        drawerFlipper.outAnimation = AnimationUtils.loadAnimation(this, android.R.anim.slide_out_right)
+        drawerFlipper.displayedChild = 0
+    }
+
+    private fun updateThemeCheckmarks() {
+        val current = ThemeManager.getCurrent(this)
+        themeCheckDefault.visibility = if (current == ThemeManager.THEME_DEFAULT) View.VISIBLE else View.GONE
+        themeCheckTech.visibility = if (current == ThemeManager.THEME_TECH) View.VISIBLE else View.GONE
+    }
+
+    private fun applyAndSaveTheme(theme: String) {
+        if (ThemeManager.getCurrent(this) == theme) return
+        ThemeManager.setTheme(this, theme)
+        recreate()
+    }
+
+    private fun setupDrawerToggle() {
+        val onBackPressedCallback = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                if (drawerFlipper.displayedChild == 1) {
+                    closeSettingsPanel()
+                } else {
+                    drawerLayout.closeDrawer(GravityCompat.START)
+                }
             }
         }
+        onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
+
+        val toggle = object : ActionBarDrawerToggle(
+            this, drawerLayout, binding.toolbar,
+            R.string.navigation_drawer_open, R.string.navigation_drawer_close
+        ) {
+            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
+                super.onDrawerSlide(drawerView, slideOffset)
+                onBackPressedCallback.isEnabled = slideOffset > 0
+            }
+
+            override fun onDrawerClosed(drawerView: View) {
+                super.onDrawerClosed(drawerView)
+                // 关闭抽屉时重置到主菜单页（无动画）
+                drawerFlipper.inAnimation = null
+                drawerFlipper.outAnimation = null
+                drawerFlipper.displayedChild = 0
+            }
+        }
+        drawerLayout.addDrawerListener(toggle)
+        toggle.syncState()
     }
 
-    private fun showUserSelectionDialog() {
-        val users = arrayOf("高猪猪", "徐大王")
-        MaterialAlertDialogBuilder(this)
-            .setTitle("请选择你的身份")
-            .setItems(users) { _, which ->
-                val selectedUser = users[which]
-                userManagementViewModel.switchUser(selectedUser)
+    private fun setupBottomNavigation() {
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.tab_second -> showFragment(PostFragment::class.java)
+                R.id.tab_third -> showFragment(DatecountFragment::class.java)
+                R.id.tab_fourth -> showFragment(MineFragment::class.java)
+                else -> showFragment(WelcomeFragment::class.java)
             }
-            .setCancelable(false)
-            .show()
+            true
+        }
     }
 
     private fun updateNavHeader(user: UserProfile?) {
-        val headerView = binding.navView.getHeaderView(0)
-        val navUsername = headerView.findViewById<TextView>(R.id.nav_header_username)
-        val navProfileImage = headerView.findViewById<CircleImageView>(R.id.nav_header_profile_image)
-        val editUsernameButton = headerView.findViewById<ImageButton>(R.id.edit_username_button)
-
         user?.let { userProfile ->
-            navUsername.text = userProfile.username
+            navHeaderUsername.text = userProfile.username
             Glide.with(this)
                 .load(userProfile.avatarUrl)
                 .placeholder(R.drawable.ic_default_avatar)
                 .error(R.drawable.ic_default_avatar)
-                .into(navProfileImage)
+                .into(navHeaderProfileImage)
 
-            navProfileImage.setOnClickListener {
+            navHeaderProfileImage.setOnClickListener {
                 val intent = Intent(this, ProfileActivity::class.java).apply {
                     putExtra(ProfileActivity.EXTRA_IMAGE_URL, userProfile.avatarUrl)
                 }
@@ -259,21 +276,18 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
 
             editUsernameButton.setOnClickListener {
-                userProfile.username?.let { currentUsername ->
-                    showEditUsernameDialog(currentUsername)
-                }
+                showEditUsernameDialog(userProfile.username)
             }
         } ?: run {
-            navUsername.text = "未登录"
-            navProfileImage.setImageResource(R.drawable.ic_default_avatar)
-            navProfileImage.setOnClickListener(null)
+            navHeaderUsername.text = "未登录"
+            navHeaderProfileImage.setImageResource(R.drawable.ic_default_avatar)
+            navHeaderProfileImage.setOnClickListener(null)
             editUsernameButton.setOnClickListener(null)
         }
     }
 
     private fun showEditUsernameDialog(currentUsername: String) {
         val editText = EditText(this).apply { setText(currentUsername) }
-
         MaterialAlertDialogBuilder(this)
             .setTitle("修改用户名")
             .setView(editText)
@@ -297,63 +311,87 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleIntent(intent)
     }
-
-    private fun handleIntent(intent: Intent?) {}
 
     private fun showFragment(fragmentClass: Class<out Fragment>) {
         val fragmentTag = fragmentClass.name
         val fragmentManager = supportFragmentManager
         val transaction = fragmentManager.beginTransaction()
-
         currentFragment?.let { transaction.hide(it) }
-
         val targetFragment = fragmentManager.findFragmentByTag(fragmentTag)
             ?: fragmentClass.newInstance().also {
                 transaction.add(binding.fragmentContainerView.id, it, fragmentTag)
             }
-
         transaction.show(targetFragment)
         currentFragment = targetFragment
-
         transaction.commit()
     }
 
-    override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        when (item.itemId) {
-            R.id.nav_home -> {}
-            R.id.nav_settings -> {}
-            R.id.nav_logout -> {
-                userManagementViewModel.logout()
+    private fun showUserSelectionDialog() {
+        val users = arrayOf("高猪猪", "徐大王")
+        MaterialAlertDialogBuilder(this)
+            .setTitle("请选择你的身份")
+            .setItems(users) { _, which ->
+                userManagementViewModel.switchUser(users[which])
             }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun checkUpdateAnnouncement() {
+        val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val lastSeenVersion = prefs.getInt("last_seen_version", 0)
+        if (BuildConfig.VERSION_CODE > lastSeenVersion) {
+            showNewVersionFeaturesDialog()
+            prefs.edit().putInt("last_seen_version", BuildConfig.VERSION_CODE).apply()
         }
-        drawerLayout.closeDrawer(GravityCompat.START)
-        return true
+    }
+
+    private fun showNewVersionFeaturesDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("🚀 发现新版本特性")
+            .setMessage(
+                "本次更新带飞你的体验：\n\n" +
+                "1️⃣ 【退出登录】功能上线，支持随时切号或重新登录。\n" +
+                "2️⃣ 【极致刷图】引入1GB暴力本地缓存，图片加载速度提升300%，滑得再快也不卡顿。\n" +
+                "3️⃣ 【原像素视频】支持保存原像素视频到本地库，看过的视频 0 毫秒秒开，画质拉满。"
+            )
+            .setPositiveButton("知道了，这就去爽") { dialog, _ -> dialog.dismiss() }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun requestSmsPermission() {
+        when {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED -> {}
+            shouldShowRequestPermissionRationale(Manifest.permission.SEND_SMS) -> {
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("需要权限")
+                    .setMessage("此应用需要发送短信的权限来通知对方用户。")
+                    .setPositiveButton("好的") { _, _ ->
+                        requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+                    }
+                    .show()
+            }
+            else -> requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+        }
     }
 
     private fun checkForUpdates() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val currentVersionCode = try {
-                    val packageInfo = packageManager.getPackageInfo(packageName, 0)
-                    packageInfo.versionCode
-                } catch (e: PackageManager.NameNotFoundException) { -1 }
-
-                if (currentVersionCode == -1) return@launch
-
+                val packageInfo = packageManager.getPackageInfo(packageName, 0)
+                val currentVersionCode = packageInfo.versionCode
                 val client = io.ktor.client.HttpClient(io.ktor.client.engine.android.Android)
                 val response: io.ktor.client.statement.HttpResponse = client.get(BuildConfig.UPDATE_JSON_URL)
                 val jsonString = response.bodyAsText()
                 client.close()
-
                 val updateInfo = Json.decodeFromString<UpdateInfo>(jsonString)
-
                 if (updateInfo.latestVersionCode > currentVersionCode) {
                     withContext(Dispatchers.Main) { showUpdateDialog(updateInfo.downloadUrl) }
                 }
             } catch (e: Exception) {
-                e.printStackTrace() // 更新检查失败时静默处理，不打扰用户
+                e.printStackTrace()
             }
         }
     }
@@ -363,8 +401,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             .setTitle("发现新版本")
             .setMessage("不更新你就是🐖中🐖")
             .setPositiveButton("立即更新") { _, _ ->
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl))
-                startActivity(intent)
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl)))
             }
             .setNegativeButton("我是猪", null)
             .setCancelable(false)

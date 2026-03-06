@@ -1,3 +1,5 @@
+@file:Suppress("OPT_IN_USAGE")
+
 package com.heyu.zhudeapp.data
 
 import android.os.Parcelable

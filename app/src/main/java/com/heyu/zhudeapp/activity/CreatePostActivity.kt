@@ -6,18 +6,19 @@ import android.telephony.SmsManager
 import android.view.MenuItem
 import android.widget.TextView
 import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.heyu.zhudeapp.R
 import com.heyu.zhudeapp.adapter.SelectedImagesAdapter
 import com.heyu.zhudeapp.databinding.ActivityCreatePostBinding
 import com.heyu.zhudeapp.di.HeyuModule
+import com.heyu.zhudeapp.di.UploadManager
 import com.heyu.zhudeapp.di.UserManager
+import com.heyu.zhudeapp.util.ThemeManager
 import com.heyu.zhudeapp.util.VideoUtils
 import com.heyu.zhudeapp.util.VideoCacheManager
 import es.dmoral.toasty.Toasty
@@ -26,9 +27,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 class CreatePostActivity : AppCompatActivity() {
 
@@ -37,9 +37,7 @@ class CreatePostActivity : AppCompatActivity() {
     private val selectedImageUris = mutableListOf<Uri>()
 
     private var progressDialog: AlertDialog? = null
-    private var dialogProgressBar: LinearProgressIndicator? = null
     private var dialogStatusText: TextView? = null
-    private var dialogPercentageText: TextView? = null
 
     private val pickMultipleMedia = registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(20)) { uris ->
         if (uris.isNotEmpty()) {
@@ -59,6 +57,7 @@ class CreatePostActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        ThemeManager.applyTheme(this)
         super.onCreate(savedInstanceState)
         binding = ActivityCreatePostBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -98,22 +97,15 @@ class CreatePostActivity : AppCompatActivity() {
 
     private fun showProgressDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_upload_progress, null)
-        dialogProgressBar = dialogView.findViewById(R.id.dialog_progress_bar)
         dialogStatusText = dialogView.findViewById(R.id.dialog_status_text)
-        dialogPercentageText = dialogView.findViewById(R.id.dialog_percentage_text)
-
         progressDialog = MaterialAlertDialogBuilder(this)
             .setView(dialogView)
             .setCancelable(false)
             .show()
     }
 
-    private fun updateDialog(status: String, progress: Int) {
-        runOnUiThread {
-            dialogStatusText?.text = status
-            dialogProgressBar?.progress = progress
-            dialogPercentageText?.text = "$progress%"
-        }
+    private fun updateStatus(status: String) {
+        runOnUiThread { dialogStatusText?.text = status }
     }
 
     private fun publishPost() {
@@ -125,12 +117,23 @@ class CreatePostActivity : AppCompatActivity() {
 
         val userId = UserManager.getCurrentUserId() ?: return
 
+        // 含视频：交给 UploadManager 后台上传，立即返回
+        val hasVideo = selectedImageUris.any { uri ->
+            contentResolver.getType(uri)?.startsWith("video/") == true
+        }
+        if (hasVideo) {
+            UploadManager.enqueue(this, content, selectedImageUris.toList(), userId)
+            sendSmsNotification()
+            finish()
+            return
+        }
+
+        // 纯图片：保持原有弹窗上传流程
         lifecycleScope.launch {
             showProgressDialog()
             try {
-                // 原视频本地库同步逻辑 + 并发上传
                 val imageUrls = uploadImages()
-                updateDialog("正在保存动态...", 95)
+                updateStatus("正在保存动态...")
                 HeyuModule.createPost(content, imageUrls, userId)
                 progressDialog?.dismiss()
                 Toasty.success(this@CreatePostActivity, getString(R.string.publish_success)).show()
@@ -145,67 +148,46 @@ class CreatePostActivity : AppCompatActivity() {
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private suspend fun uploadImages(): List<String> {
-        val total = selectedImageUris.size
-        val progressMap = ConcurrentHashMap<Int, Int>()
-        
+        val uris = selectedImageUris.toList()
+        if (uris.isEmpty()) return emptyList()
+
+        val total = uris.size
+        val completed = AtomicInteger(0)
+        updateStatus("正在处理媒体文件...")
+
         return coroutineScope {
-            selectedImageUris.mapIndexed { index, uri ->
+            uris.map { uri ->
                 async(Dispatchers.IO) {
                     val mimeType = contentResolver.getType(uri)
                     val isVideo = mimeType?.startsWith("video/") == true
-                    
-                    // --- 步骤 1: 压缩/处理 ---
-                    var processedUri = uri
-                    if (isVideo) {
-                        processedUri = VideoUtils.compressVideoIfNeeded(this@CreatePostActivity, uri) { p ->
-                            // 压缩进度占 40%
-                            progressMap[index] = (p * 0.4).toInt()
-                            updateGlobalProgress(progressMap, total)
-                        }
-                    } else {
-                        // 图片直接算压缩完成 10%
-                        progressMap[index] = 10
-                        updateGlobalProgress(progressMap, total)
-                    }
 
-                    // --- 步骤 2: 读取字节流 ---
                     val fileBytes = if (isVideo) {
-                        VideoUtils.uriToByteArrayWithLimit(this@CreatePostActivity, processedUri)
+                        updateStatus("正在压缩视频...")
+                        val compressed = VideoUtils.compressVideoIfNeeded(this@CreatePostActivity, uri) {}
+                        VideoUtils.uriToByteArrayWithLimit(this@CreatePostActivity, compressed)
                     } else {
                         HeyuModule.compressImage(this@CreatePostActivity, uri)
                     }
-                    
-                    // 读取完算 20% (如果是图片) 或基于压缩进度加 10%
-                    progressMap[index] = if(isVideo) (progressMap[index] ?: 40) + 10 else 20
-                    updateGlobalProgress(progressMap, total)
 
-                    // --- 步骤 3: 上传 ---
                     val fileName = "${UUID.randomUUID()}.${if (isVideo) "mp4" else "jpg"}"
+                    updateStatus("正在上传 (${completed.get() + 1}/$total)...")
+
                     val url = if (isVideo) {
                         HeyuModule.uploadPostVideo(fileBytes, fileName)
                     } else {
                         HeyuModule.uploadPostImage(fileBytes, fileName)
                     }
-                    
-                    // --- 步骤 4: 归档本地库 (仅视频) ---
+
                     if (isVideo) {
                         VideoCacheManager.saveOriginalVideoToLibrary(this@CreatePostActivity, url, uri)
                     }
 
-                    // 任务彻底完成 100%
-                    progressMap[index] = 100
-                    updateGlobalProgress(progressMap, total)
-                    
+                    val done = completed.incrementAndGet()
+                    updateStatus("已完成 $done/$total 个文件")
                     url
                 }
             }.awaitAll()
         }
-    }
-
-    private fun updateGlobalProgress(progressMap: Map<Int, Int>, total: Int) {
-        val currentSum = progressMap.values.sum()
-        val averageProgress = currentSum / total
-        updateDialog("正在极速发布中...", averageProgress.coerceIn(0, 99))
     }
 
     private fun sendSmsNotification() {

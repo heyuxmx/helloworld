@@ -12,4 +12,15 @@
     <color name="green">#4CAF50</color>
     <color name="lightred">#FF9999</color>
     <color name="grey_placeholder">#DDDDDD</color>
+
+    <!-- 科技色主题 -->
+    <color name="tech_primary">#00D4FF</color>
+    <color name="tech_background">#060D1A</color>
+    <color name="tech_surface">#0C1A2E</color>
+    <color name="tech_surface_variant">#13253F</color>
+    <color name="tech_on_background">#D8EEFF</color>
+    <color name="tech_on_surface">#A3C4E0</color>
+    <color name="tech_toolbar">#080F1F</color>
+    <color name="tech_card">#CC0C1A2E</color>
+    <color name="tech_nav_unselected">#3A5F80</color>
 </resources>
