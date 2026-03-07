@@ -75,27 +75,30 @@ class SokobanView @JvmOverloads constructor(
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val w = MeasureSpec.getSize(widthMeasureSpec)
+        val availableWidth = MeasureSpec.getSize(widthMeasureSpec)
+        val availableHeight = MeasureSpec.getSize(heightMeasureSpec)
+
         if (rows == 0 || cols == 0) {
-            setMeasuredDimension(w, w)
+            setMeasuredDimension(availableWidth, availableHeight)
             return
         }
-        // 按宽度适配，保持比例
-        cellSize = w.toFloat() / cols
-        val h = (cellSize * rows).toInt()
-        // 限制最大高度
-        val maxH = (w * 1.2f).toInt()
-        if (h > maxH) {
-            cellSize = maxH.toFloat() / rows
-            val actualW = (cellSize * cols).toInt()
-            offsetX = (w - actualW) / 2f
-            offsetY = 0f
-            setMeasuredDimension(w, maxH)
-        } else {
-            offsetX = 0f
-            offsetY = 0f
-            setMeasuredDimension(w, h)
-        }
+
+        // 计算按宽度和高度分别适配时的单元格大小
+        val cellSizeByWidth = availableWidth.toFloat() / cols
+        val cellSizeByHeight = availableHeight.toFloat() / rows
+
+        // 选择较小的单元格大小，确保地图完整显示
+        cellSize = minOf(cellSizeByWidth, cellSizeByHeight)
+
+        // 计算实际地图尺寸
+        val actualWidth = (cellSize * cols).toInt()
+        val actualHeight = (cellSize * rows).toInt()
+
+        // 居中显示
+        offsetX = (availableWidth - actualWidth) / 2f
+        offsetY = (availableHeight - actualHeight) / 2f
+
+        setMeasuredDimension(availableWidth, availableHeight)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -154,30 +157,33 @@ class SokobanView @JvmOverloads constructor(
     }
 
     private fun drawCell(canvas: Canvas, cell: Int, x: Float, y: Float, isTech: Boolean) {
+        // 地板和墙壁完全填满格子，无间距
+        val fullRect = RectF(x, y, x + cellSize, y + cellSize)
+        // 箱子和玩家保留小间距
         val padding = cellSize * 0.06f
-        val rect = RectF(x + padding, y + padding, x + cellSize - padding, y + cellSize - padding)
+        val paddedRect = RectF(x + padding, y + padding, x + cellSize - padding, y + cellSize - padding)
         val cornerRadius = cellSize * 0.15f
 
         when (cell) {
             0 -> { /* 空地，不绘制 */ }
-            1 -> drawFloor(canvas, rect, cornerRadius)
-            2 -> drawWall(canvas, rect, cornerRadius, isTech)
-            3 -> drawTarget(canvas, rect, cornerRadius)
+            1 -> drawFloor(canvas, fullRect, cornerRadius)
+            2 -> drawWall(canvas, fullRect, cornerRadius, isTech)
+            3 -> drawTarget(canvas, fullRect, cornerRadius)
             4 -> {
-                drawFloor(canvas, rect, cornerRadius)
-                drawBox(canvas, rect, cornerRadius, false, isTech)
+                drawFloor(canvas, fullRect, cornerRadius)
+                drawBox(canvas, paddedRect, cornerRadius, false, isTech)
             }
             5 -> {
-                drawTarget(canvas, rect, cornerRadius)
-                drawBox(canvas, rect, cornerRadius, true, isTech)
+                drawTarget(canvas, fullRect, cornerRadius)
+                drawBox(canvas, paddedRect, cornerRadius, true, isTech)
             }
             6 -> {
-                drawFloor(canvas, rect, cornerRadius)
-                drawPlayer(canvas, rect)
+                drawFloor(canvas, fullRect, cornerRadius)
+                drawPlayer(canvas, paddedRect)
             }
             7 -> {
-                drawTarget(canvas, rect, cornerRadius)
-                drawPlayer(canvas, rect)
+                drawTarget(canvas, fullRect, cornerRadius)
+                drawPlayer(canvas, paddedRect)
             }
         }
     }

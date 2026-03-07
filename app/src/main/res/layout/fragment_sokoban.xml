@@ -88,92 +88,102 @@
         </LinearLayout>
 
         <!-- 地图区域 -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="@android:color/transparent">
-
-            <com.heyu.zhudeapp.view.SokobanView
-                android:id="@+id/sokoban_view"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- 方向控制 + 操作按钮 -->
-        <LinearLayout
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
+            android:padding="12dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@android:color/transparent">
+
+                <com.heyu.zhudeapp.view.SokobanView
+                    android:id="@+id/sokoban_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center" />
+            </com.google.android.material.card.MaterialCardView>
+        </FrameLayout>
+
+        <!-- 方向控制 + 操作按钮（固定在底部） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:gravity="center">
+            android:gravity="center"
+            android:paddingTop="8dp"
+            android:paddingBottom="12dp">
 
-            <!-- 方向键区域 -->
-            <RelativeLayout
-                android:layout_width="180dp"
-                android:layout_height="180dp"
-                android:layout_gravity="center_horizontal">
+            <!-- 方向键区域 (T字形排布) -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:orientation="vertical"
+                android:gravity="center">
 
-                <!-- 上 -->
-                <ImageButton
-                    android:id="@+id/btn_up"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:layout_centerHorizontal="true"
-                    android:layout_alignParentTop="true"
-                    android:background="@drawable/bg_dpad_button"
-                    android:src="@android:drawable/arrow_up_float"
-                    android:scaleType="centerInside"
-                    android:contentDescription="Up" />
+                <!-- 第一行：左 上 右 -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center">
 
-                <!-- 左 -->
-                <ImageButton
-                    android:id="@+id/btn_left"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:layout_alignParentStart="true"
-                    android:layout_centerVertical="true"
-                    android:background="@drawable/bg_dpad_button"
-                    android:src="@android:drawable/arrow_up_float"
-                    android:rotation="270"
-                    android:scaleType="centerInside"
-                    android:contentDescription="Left" />
+                    <!-- 左 -->
+                    <ImageButton
+                        android:id="@+id/btn_left"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:layout_margin="4dp"
+                        android:background="@android:color/transparent"
+                        android:src="@drawable/ic_arrow_left"
+                        android:scaleType="fitCenter"
+                        android:contentDescription="向左" />
 
-                <!-- 右 -->
-                <ImageButton
-                    android:id="@+id/btn_right"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:layout_alignParentEnd="true"
-                    android:layout_centerVertical="true"
-                    android:background="@drawable/bg_dpad_button"
-                    android:src="@android:drawable/arrow_up_float"
-                    android:rotation="90"
-                    android:scaleType="centerInside"
-                    android:contentDescription="Right" />
+                    <!-- 上 -->
+                    <ImageButton
+                        android:id="@+id/btn_up"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:layout_margin="4dp"
+                        android:background="@android:color/transparent"
+                        android:src="@drawable/ic_arrow_up"
+                        android:scaleType="fitCenter"
+                        android:contentDescription="向上" />
 
-                <!-- 下 -->
+                    <!-- 右 -->
+                    <ImageButton
+                        android:id="@+id/btn_right"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:layout_margin="4dp"
+                        android:background="@android:color/transparent"
+                        android:src="@drawable/ic_arrow_right"
+                        android:scaleType="fitCenter"
+                        android:contentDescription="向右" />
+                </LinearLayout>
+
+                <!-- 第二行：下 -->
                 <ImageButton
                     android:id="@+id/btn_down"
                     android:layout_width="56dp"
                     android:layout_height="56dp"
-                    android:layout_centerHorizontal="true"
-                    android:layout_alignParentBottom="true"
-                    android:background="@drawable/bg_dpad_button"
-                    android:src="@android:drawable/arrow_up_float"
-                    android:rotation="180"
-                    android:scaleType="centerInside"
-                    android:contentDescription="Down" />
-            </RelativeLayout>
+                    android:layout_margin="4dp"
+                    android:background="@android:color/transparent"
+                    android:src="@drawable/ic_arrow_down"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="向下" />
+            </LinearLayout>
 
             <!-- 操作按钮 -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="8dp"
                 android:gravity="center"
                 android:orientation="horizontal">
 
@@ -181,31 +191,34 @@
                     android:id="@+id/btn_undo"
                     style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                     android:layout_width="wrap_content"
-                    android:layout_height="40dp"
+                    android:layout_height="38dp"
                     android:layout_marginEnd="8dp"
                     android:text="撤销"
                     android:textSize="13sp"
-                    app:cornerRadius="20dp" />
+                    android:minWidth="70dp"
+                    app:cornerRadius="19dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_reset"
                     style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                     android:layout_width="wrap_content"
-                    android:layout_height="40dp"
+                    android:layout_height="38dp"
                     android:layout_marginEnd="8dp"
                     android:text="重置"
                     android:textSize="13sp"
-                    app:cornerRadius="20dp" />
+                    android:minWidth="70dp"
+                    app:cornerRadius="19dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_next_level"
                     style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                     android:layout_width="wrap_content"
-                    android:layout_height="40dp"
+                    android:layout_height="38dp"
                     android:text="下一关"
                     android:textSize="13sp"
+                    android:minWidth="70dp"
                     android:visibility="gone"
-                    app:cornerRadius="20dp" />
+                    app:cornerRadius="19dp" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
