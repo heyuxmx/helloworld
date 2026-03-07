@@ -4,6 +4,27 @@
     <attr name="toolbarBackgroundColor" format="color" />
     <!-- 动态卡片背景色，默认主题半透明白、科技色深蓝 -->
     <attr name="postCardBackground" format="color" />
+    <!-- 底部导航栏背景色 -->
+    <attr name="bottomNavBackgroundColor" format="color|reference" />
+    <!-- 动态页面背景 -->
+    <attr name="pageBackground" format="reference" />
+    <!-- 在一起天数文字颜色 -->
+    <attr name="daysTextColor" format="color" />
+    <attr name="daysNumberColor" format="color" />
+    <!-- 评论输入框背景 -->
+    <attr name="commentInputBackground" format="reference" />
+    <!-- 倒计时页面背景（纪念日/生日/节日） -->
+    <attr name="countdownBgAnniversary" format="reference" />
+    <attr name="countdownBgBirthday" format="reference" />
+    <attr name="countdownBgHoliday" format="reference" />
+    <!-- 倒计时卡片 -->
+    <attr name="countdownCardBackground" format="color" />
+    <attr name="countdownDaysColor" format="color" />
+    <!-- 卡片边框 -->
+    <attr name="postCardStrokeColor" format="color" />
+    <attr name="postCardStrokeWidth" format="dimension" />
     <!-- 点赞、评论数文字颜色 -->
     <attr name="interactionTextColor" format="color" />
+    <!-- 顶栏文字颜色 -->
+    <attr name="toolbarTextColor" format="color" />
 </resources>

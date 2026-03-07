@@ -23,8 +23,8 @@
 
 # --- Comprehensive rules for libraries that use reflection ---
 
-# Keep Ktor, Supabase, and their dependencies (SLF4J, Kotlinx Serialization, Coroutines) from being removed by R8.
-# These libraries use reflection, which can confuse the code shrinker.
+# Keep Ktor and其依赖 (SLF4J, Kotlinx Serialization, Coroutines) 不被 R8 移除
+# 这些库使用反射，可能会被代码压缩器误删
 
 -keep class org.slf4j.** { *; }
 -dontwarn org.slf4j.**

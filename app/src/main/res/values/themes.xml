@@ -3,9 +3,22 @@
     <style name="Base.Theme.ZhudeApp" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/lightblue</item>
         <item name="materialAlertDialogTheme">@style/App.Theme.AlertDialog</item>
-        <item name="toolbarBackgroundColor">@color/lightblue</item>
+        <item name="toolbarBackgroundColor">@color/lightred_transparent</item>
+        <item name="toolbarTextColor">@color/black</item>
         <item name="postCardBackground">#40FFFFFF</item>
         <item name="interactionTextColor">@color/black</item>
+        <item name="bottomNavBackgroundColor">@color/lightred_transparent</item>
+        <item name="pageBackground">@drawable/postfragment</item>
+        <item name="daysTextColor">@color/red</item>
+        <item name="daysNumberColor">@color/lightred</item>
+        <item name="commentInputBackground">@drawable/comment_input_background</item>
+        <item name="postCardStrokeColor">#55FF9999</item>
+        <item name="postCardStrokeWidth">1dp</item>
+        <item name="countdownBgAnniversary">@drawable/ann</item>
+        <item name="countdownBgBirthday">@drawable/birthday</item>
+        <item name="countdownBgHoliday">@drawable/holiday</item>
+        <item name="countdownCardBackground">#B3FFFFFF</item>
+        <item name="countdownDaysColor">@color/lightred</item>
     </style>
     <style name="Theme.ZhudeApp" parent="Base.Theme.ZhudeApp" />
 
@@ -27,15 +40,50 @@
         <item name="colorOnSurface">@color/tech_on_background</item>
         <item name="colorOnBackground">@color/tech_on_background</item>
         <item name="materialAlertDialogTheme">@style/App.Theme.AlertDialog.Tech</item>
+        <item name="alertDialogTheme">@style/App.Theme.AppCompatDialog.Tech</item>
         <item name="toolbarBackgroundColor">@color/tech_toolbar</item>
+        <item name="toolbarTextColor">@color/white</item>
         <item name="postCardBackground">@color/tech_card</item>
+        <item name="postCardStrokeColor">#3300D4FF</item>
+        <item name="postCardStrokeWidth">1dp</item>
         <item name="interactionTextColor">@color/tech_primary</item>
+        <item name="bottomNavBackgroundColor">@drawable/bg_tech_bottom_nav</item>
+        <item name="pageBackground">@drawable/bg_tech_gradient</item>
+        <item name="daysTextColor">@color/tech_days_text</item>
+        <item name="daysNumberColor">@color/tech_days_number</item>
+        <item name="commentInputBackground">@drawable/bg_tech_comment_input</item>
+        <item name="countdownBgAnniversary">@drawable/bg_tech_gradient</item>
+        <item name="countdownBgBirthday">@drawable/bg_tech_gradient</item>
+        <item name="countdownBgHoliday">@drawable/bg_tech_gradient</item>
+        <item name="countdownCardBackground">@color/tech_card</item>
+        <item name="countdownDaysColor">@color/tech_days_number</item>
         <!-- 强制深色模式 -->
         <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
     </style>
 
     <style name="App.Theme.AlertDialog.Tech" parent="ThemeOverlay.Material3.MaterialAlertDialog">
         <item name="colorPrimary">@color/tech_primary</item>
-        <item name="colorSurface">@color/tech_surface</item>
+        <item name="colorSurface">@color/black</item>
+        <item name="colorOnSurface">@color/white</item>
+        <item name="colorOnSurfaceVariant">@color/white</item>
+        <item name="buttonBarPositiveButtonStyle">@style/App.TechDialog.Button</item>
+        <item name="buttonBarNegativeButtonStyle">@style/App.TechDialog.Button</item>
+        <item name="buttonBarNeutralButtonStyle">@style/App.TechDialog.Button</item>
+    </style>
+
+    <!-- AppCompat AlertDialog.Builder 用的主题 -->
+    <style name="App.Theme.AppCompatDialog.Tech" parent="ThemeOverlay.AppCompat.Dialog.Alert">
+        <item name="colorAccent">@color/tech_primary</item>
+        <item name="android:background">@color/black</item>
+        <item name="android:textColorPrimary">@color/white</item>
+        <item name="android:textColorSecondary">@color/white</item>
+    </style>
+
+    <style name="App.TechDialog.Button" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/tech_primary</item>
+    </style>
+
+    <style name="Toolbar.TitleText" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
+        <item name="android:textSize">16sp</item>
     </style>
 </resources>

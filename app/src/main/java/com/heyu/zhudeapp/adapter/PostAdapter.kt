@@ -82,6 +82,16 @@ class PostAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.list_item_post, parent, false)
+        // Apply theme-based card stroke
+        val card = view as com.google.android.material.card.MaterialCardView
+        val context = parent.context
+        val ta = context.obtainStyledAttributes(intArrayOf(R.attr.postCardStrokeColor, R.attr.postCardStrokeWidth))
+        val strokeColor = ta.getColor(0, 0)
+        val strokeWidth = ta.getDimensionPixelSize(1, 0)
+        ta.recycle()
+        card.strokeColor = strokeColor
+        card.strokeWidth = strokeWidth
+        if (strokeWidth > 0) card.cardElevation = 0f
         return PostViewHolder(view, lifecycleScope, likedPostIds, currentUserId, onCommentInteractionListener, onImageSaveListener, imagesViewPool, commentsViewPool)
     }
 
@@ -187,10 +197,13 @@ class PostAdapter(
             )
             commentsRecyclerView.adapter = commentsAdapter
 
+            val isTech = com.heyu.zhudeapp.util.ThemeManager.isTech(itemView.context)
+            val likedRes = if (isTech) R.drawable.ic_like else R.drawable.solidlike
+            val unlikedRes = if (isTech) R.drawable.ic_like_hollow else R.drawable.hollowlike
             if (post.likes > 1 || likedPostIds.contains(post.id)) {
-                likeIcon.setImageResource(R.drawable.solidlike)
+                likeIcon.setImageResource(likedRes)
             } else {
-                likeIcon.setImageResource(R.drawable.hollowlike)
+                likeIcon.setImageResource(unlikedRes)
             }
             likeIcon.setOnClickListener {
                 val vibrator = itemView.context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
@@ -206,7 +219,7 @@ class PostAdapter(
                 val newLikes = currentLikes + 1
                 likeCountText.text = newLikes.toString()
                 if (!likedPostIds.contains(post.id)) {
-                    likeIcon.setImageResource(R.drawable.solidlike)
+                    likeIcon.setImageResource(likedRes)
                     likedPostIds.add(post.id)
                 }
                 lifecycleScope.launch {

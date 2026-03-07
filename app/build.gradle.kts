@@ -7,7 +7,6 @@ plugins {
     alias(libs.plugins.kotlin.android)
     id("kotlin-parcelize")
     alias(libs.plugins.kotlin.serialization)
-    id("com.google.gms.google-services")
     alias(libs.plugins.ksp)
 }
 
@@ -109,8 +108,6 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.16.0")
     implementation("com.github.bumptech.glide:okhttp3-integration:4.16.0")
     ksp("com.github.bumptech.glide:ksp:4.16.0")
-    implementation(platform("com.google.firebase:firebase-bom:33.0.0"))
-    implementation("com.google.firebase:firebase-analytics-ktx")
     implementation("com.github.GrenderG:Toasty:1.5.2")
     implementation("com.airbnb.android:lottie:6.4.0")
     implementation("androidx.fragment:fragment-ktx:1.6.2")

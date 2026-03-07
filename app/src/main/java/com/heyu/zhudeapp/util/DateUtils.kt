@@ -11,7 +11,7 @@ import java.util.TimeZone
  */
 object DateUtils {
 
-    // Supabase返回的UTC时间格式
+    // 服务器返回的UTC时间格式
     private const val UTC_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX"
     // 定义各种我们希望输出的时间格式
     private const val TODAY_FORMAT = "今天 HH:mm"
@@ -19,7 +19,7 @@ object DateUtils {
     private const val DEFAULT_FORMAT = "MM-dd HH:mm"
 
     /**
-     * 将从Supabase获取的UTC时间字符串，转换为人性化的、本地化的时间格式。
+     * 将从服务器获取的UTC时间字符串，转换为人性化的、本地化的时间格式。
      * @param utcString 例如 "2024-05-20T10:30:00.123456+00:00"
      * @return 格式化后的字符串，例如 "刚刚", "5分钟前", "今天 18:30"
      */

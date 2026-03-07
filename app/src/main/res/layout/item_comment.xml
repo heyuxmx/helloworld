@@ -17,6 +17,7 @@
         android:id="@+id/commentUserName"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:textColor="?android:attr/textColorPrimary"
         android:textStyle="bold"
         tools:text="作者名字"/>
 
@@ -25,6 +26,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="4dp"
+        android:textColor="?android:attr/textColorPrimary"
         tools:text="这是评论的内容。"/>
 
 </LinearLayout>

@@ -4,10 +4,6 @@
 # Ktor
 ktor = "2.3.11"
 
-# Supabase
-supabase = "2.5.3"
-
-
 activity = "1.9.0"
 appcompat = "1.6.1"
 constraintlayout = "2.1.4"
@@ -33,12 +29,6 @@ media3 = "1.3.1"
 # Ktor
 ktor-client-android = { module = "io.ktor:ktor-client-android", version.ref = "ktor" }
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
-
-# Supabase
-supabase-bom = { module = "io.github.jan-tennert.supabase:bom", version.ref = "supabase" }
-supabase-postgrest = { module = "io.github.jan-tennert.supabase:postgrest-kt" }
-supabase-storage = { module = "io.github.jan-tennert.supabase:storage-kt" }
-
 
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }

@@ -19,8 +19,8 @@ object Users {
 
     // --- The pre-defined PUBLIC URLs for the default avatars ---
     // These are used when creating a post, to ensure other users can see the avatar.
-    private const val DEFAULT_PUBLIC_AVATAR_URL_GAOBAO = "https://yrkgoqusmsmbqmgvnhxte.supabase.co/storage/v1/object/public/avatars/logo_xiaogao.png"
-    private const val DEFAULT_PUBLIC_AVATAR_URL_XUBABA = "https://yrkgoqusmsmbqmgvnhxte.supabase.co/storage/v1/object/public/avatars/logo_xiaoxu.png"
+    private const val DEFAULT_PUBLIC_AVATAR_URL_GAOBAO = "https://marth-nongerminative-hedonistically.ngrok-free.dev/storage/avatars/logo_xiaogao.png"
+    private const val DEFAULT_PUBLIC_AVATAR_URL_XUBABA = "https://marth-nongerminative-hedonistically.ngrok-free.dev/storage/avatars/logo_xiaoxu.png"
 
     // --- User Management ---
     fun getActiveUserId(context: Context): String {

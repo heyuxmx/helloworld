@@ -51,7 +51,7 @@ object VideoUtils {
     }
 
     /**
-     * 视频压缩算法：确保文件在 40MB 以内，满足 Supabase 50MB 限制
+     * 视频压缩算法：确保文件在 40MB 以内，满足服务器上传限制
      */
     suspend fun compressVideoIfNeeded(
         context: Context, 

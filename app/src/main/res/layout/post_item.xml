@@ -54,7 +54,7 @@
             android:id="@+id/commentIcon"
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:src="@drawable/ic_comment"
+            android:src="@drawable/ic_messege"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:layout_marginStart="24dp"
             android:contentDescription="评论"/>

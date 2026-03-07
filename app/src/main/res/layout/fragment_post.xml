@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/postfragment"
+    android:background="?attr/pageBackground"
     tools:context=".Fragment.post.PostFragment">
 
     <LinearLayout
@@ -32,7 +32,7 @@
                 style="?android:attr/progressBarStyleSmall"
                 android:layout_width="20dp"
                 android:layout_height="20dp"
-                android:indeterminateTint="@color/lightblue"
+                android:indeterminateTint="?attr/colorPrimary"
                 android:layout_marginEnd="10dp" />
 
             <TextView
@@ -47,6 +47,7 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/days_counter_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center"
@@ -62,7 +63,7 @@
                 android:layout_marginTop="30dp"
                 android:text="今天是我们在一起的"
                 android:textAppearance="?attr/textAppearanceListItem"
-                android:textColor="@color/red"
+                android:textColor="?attr/daysTextColor"
                 android:textSize="24sp"
                 android:textStyle="bold" />
 
@@ -72,7 +73,7 @@
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/house"
                 android:textAppearance="?attr/textAppearanceListItem"
-                android:textColor="@color/lightred"
+                android:textColor="?attr/daysNumberColor"
                 android:textSize="48sp"
                 android:textStyle="bold"
                 tools:text="n"
@@ -85,7 +86,7 @@
                 android:fontFamily="@font/house"
                 android:text="天啦"
                 android:textAppearance="?attr/textAppearanceListItem"
-                android:textColor="@color/red"
+                android:textColor="?attr/daysTextColor"
                 android:textSize="24sp"
                 android:textStyle="bold" />
         </LinearLayout>

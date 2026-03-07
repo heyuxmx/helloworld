@@ -9,7 +9,7 @@
     android:layout_marginTop="8dp"
     android:layout_marginBottom="8dp"
     app:cardElevation="0dp"
-    app:cardBackgroundColor="#B3FFFFFF"> <!-- 70% transparent white -->
+    app:cardBackgroundColor="?attr/countdownCardBackground">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
@@ -44,7 +44,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceHeadline4"
-            android:textColor="@color/lightred"
+            android:textColor="?attr/countdownDaysColor"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@+id/days_remaining_suffix"
             app:layout_constraintTop_toTopOf="parent"

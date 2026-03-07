@@ -102,14 +102,21 @@ class PostImagesAdapter(
         fun bind(mediaUrl: String, mediaUris: List<String>, position: Int) {
             val context: Context = view.context
 
-            // 服务器上传视频时会同步生成 _thumb.jpg，用它作封面，比 Glide 解析远程视频快得多
+            // 服务器上传视频时会同步生成 _thumb.jpg，用它作封面
+            // 若 _thumb.jpg 不存在（如旧 Supabase 视频），回退到 Glide 直接解析视频帧
             val thumbUrl = mediaUrl.replace(Regex("\\.mp4$", RegexOption.IGNORE_CASE), "_thumb.jpg")
+            val fallback = Glide.with(context)
+                .load(Uri.parse(mediaUrl))
+                .centerCrop()
+                .placeholder(R.color.grey_placeholder)
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+
             Glide.with(context)
                 .load(thumbUrl)
                 .centerCrop()
                 .placeholder(R.color.grey_placeholder)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
-                .error(R.drawable.image_placeholder)
+                .error(fallback)
                 .into(videoView)
             
             val openPagerActivity = {

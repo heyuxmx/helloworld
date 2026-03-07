@@ -7,7 +7,7 @@
     android:orientation="vertical"
     android:gravity="center_horizontal"
     android:padding="16dp"
-    android:background="#FFFFFF"
+    android:background="?android:attr/colorBackground"
     tools:context=".Fragment.welcome.MineFragment">
 
     <de.hdodenhof.circleimageview.CircleImageView
@@ -16,7 +16,7 @@
         android:layout_height="120dp"
         android:layout_marginTop="32dp"
         tools:src="@tools:sample/avatars"
-        app:civ_border_color="#FFC0CB"
+        app:civ_border_color="?attr/colorPrimary"
         app:civ_border_width="2dp" />
 
     <TextView

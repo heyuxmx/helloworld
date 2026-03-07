@@ -352,6 +352,11 @@ class PostFragment : Fragment(), OnItemLongClickListener,
         val diffInMillis = today.timeInMillis - startDate.timeInMillis
         val days = TimeUnit.MILLISECONDS.toDays(diffInMillis) + 1
         binding.daysNumberTextView.text = days.toString()
+
+        // Tech theme: hide the days counter (moved to WelcomeFragment)
+        if (com.heyu.zhudeapp.util.ThemeManager.isTech(requireContext())) {
+            binding.daysCounterContainer.visibility = View.GONE
+        }
     }
 
     private fun setupFragmentResultListener() {

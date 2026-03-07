@@ -38,6 +38,14 @@ class CountdownAdapter(private var items: MutableList<CountdownItem>) : Recycler
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val binding = ListItemCountdownBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        // Apply theme-based card stroke
+        val context = parent.context
+        val ta = context.obtainStyledAttributes(intArrayOf(com.heyu.zhudeapp.R.attr.postCardStrokeColor, com.heyu.zhudeapp.R.attr.postCardStrokeWidth))
+        val strokeColor = ta.getColor(0, 0)
+        val strokeWidth = ta.getDimensionPixelSize(1, 0)
+        ta.recycle()
+        binding.root.strokeColor = strokeColor
+        binding.root.strokeWidth = strokeWidth
         val holder = ViewHolder(binding)
 
         holder.itemView.setOnLongClickListener {

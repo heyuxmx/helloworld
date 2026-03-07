@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -10,7 +10,8 @@
     android:layout_marginBottom="4dp"
     app:cardBackgroundColor="?attr/postCardBackground"
     app:cardCornerRadius="8dp"
-    app:cardElevation="2dp">
+    app:cardElevation="2dp"
+    app:strokeWidth="0dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -121,10 +122,11 @@
                 android:id="@+id/comment_icon"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
+                android:padding="0dp"
                 android:background="@android:color/transparent"
-                app:srcCompat="@android:drawable/ic_dialog_email"
+                android:scaleType="fitCenter"
+                app:srcCompat="@drawable/ic_messege"
                 app:tint="@null"
-                android:layerType="software"
                 android:contentDescription="@string/comment_button_description"/>
 
             <TextView
@@ -138,10 +140,12 @@
 
             <ImageButton
                 android:id="@+id/like_icon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:padding="0dp"
                 android:layout_marginStart="24dp"
                 android:background="@android:color/transparent"
+                android:scaleType="fitCenter"
                 app:srcCompat="@drawable/hollowlike"
                 android:contentDescription="Like" />
 
@@ -173,7 +177,7 @@
                 android:hint="添加评论..."
                 android:inputType="textShortMessage"
                 android:maxLines="1"
-                android:background="@drawable/comment_input_background"
+                android:background="?attr/commentInputBackground"
                 android:padding="8dp"
                 android:textSize="14sp" />
 
@@ -201,4 +205,4 @@
 
     </LinearLayout>
 
-</androidx.cardview.widget.CardView>
+</com.google.android.material.card.MaterialCardView>

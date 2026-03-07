@@ -19,6 +19,10 @@ supabase.env
 server/.env
 server/node_modules/
 server/uploads/
+server/src/daemon/*.log
+
+# Build cache
+.kotlin/
 
 # Claude
 .claude/

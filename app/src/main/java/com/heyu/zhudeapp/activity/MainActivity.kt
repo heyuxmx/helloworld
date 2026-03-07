@@ -40,14 +40,17 @@ import com.canhub.cropper.CropImageOptions
 import com.canhub.cropper.CropImageView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.heyu.zhudeapp.BuildConfig
-import com.heyu.zhudeapp.Fragment.countdown.DatecountFragment
+import com.heyu.zhudeapp.Fragment.game.SudokuFragment
 import com.heyu.zhudeapp.Fragment.post.PostFragment
-import com.heyu.zhudeapp.Fragment.welcome.MineFragment
+import com.heyu.zhudeapp.Fragment.welcome.CoupleFragment
 import com.heyu.zhudeapp.Fragment.welcome.WelcomeFragment
 import com.heyu.zhudeapp.R
+import com.heyu.zhudeapp.adapter.CountdownAdapter
 import com.heyu.zhudeapp.data.UpdateInfo
 import com.heyu.zhudeapp.data.UserProfile
 import com.heyu.zhudeapp.databinding.ActivityMainBinding
+import com.heyu.zhudeapp.model.CountdownItem
+import com.heyu.zhudeapp.util.LunarCalendar
 import com.heyu.zhudeapp.util.ThemeManager
 import com.heyu.zhudeapp.viewmodel.MainViewModel
 import com.heyu.zhudeapp.viewmodel.UserManagementViewModel
@@ -58,6 +61,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -71,8 +76,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var navHeaderProfileImage: CircleImageView
     private lateinit var navHeaderUsername: TextView
     private lateinit var editUsernameButton: ImageButton
-    private lateinit var themeCheckDefault: ImageView
-    private lateinit var themeCheckTech: ImageView
+    private lateinit var themeOptionDefault: LinearLayout
+    private lateinit var themeOptionTech: LinearLayout
+    private lateinit var themeIndicatorDefault: View
+    private lateinit var themeIndicatorTech: View
+    private lateinit var anniversaryAdapter: CountdownAdapter
 
     companion object {
         const val EXTRA_CHANGE_AVATAR_REQUEST = "EXTRA_CHANGE_AVATAR_REQUEST"
@@ -120,6 +128,13 @@ class MainActivity : AppCompatActivity() {
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
             binding.toolbar.updateLayoutParams<ViewGroup.MarginLayoutParams> { topMargin = insets.top }
             binding.bottomNavigation.updatePadding(bottom = insets.bottom)
+            // Apply status bar padding to settings/anniversary toolbar in drawer
+            findViewById<LinearLayout>(R.id.settings_toolbar)?.setPadding(
+                0, insets.top, 0, 0
+            )
+            findViewById<LinearLayout>(R.id.anniversary_toolbar)?.setPadding(
+                0, insets.top, 0, 0
+            )
             windowInsets
         }
 
@@ -156,12 +171,19 @@ class MainActivity : AppCompatActivity() {
         navHeaderProfileImage = findViewById(R.id.nav_header_profile_image)
         navHeaderUsername = findViewById(R.id.nav_header_username)
         editUsernameButton = findViewById(R.id.edit_username_button)
-        themeCheckDefault = findViewById(R.id.theme_check_default)
-        themeCheckTech = findViewById(R.id.theme_check_tech)
+        themeOptionDefault = findViewById(R.id.theme_option_default)
+        themeOptionTech = findViewById(R.id.theme_option_tech)
+        themeIndicatorDefault = findViewById(R.id.theme_indicator_default)
+        themeIndicatorTech = findViewById(R.id.theme_indicator_tech)
 
         // 主菜单：主页
         findViewById<LinearLayout>(R.id.drawer_item_home).setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
+        }
+
+        // 主菜单：纪念日 → 滑入纪念日页
+        findViewById<LinearLayout>(R.id.drawer_item_anniversary).setOnClickListener {
+            openAnniversaryPanel()
         }
 
         // 主菜单：设置 → 滑入设置页
@@ -177,15 +199,26 @@ class MainActivity : AppCompatActivity() {
 
         // 设置页：返回按钮
         findViewById<ImageButton>(R.id.settings_back_button).setOnClickListener {
-            closeSettingsPanel()
+            closeSubPanel()
         }
+
+        // 纪念日页：返回按钮
+        findViewById<ImageButton>(R.id.anniversary_back_button).setOnClickListener {
+            closeSubPanel()
+        }
+
+        // 纪念日页：RecyclerView
+        anniversaryAdapter = CountdownAdapter(mutableListOf())
+        val anniversaryRecyclerView = findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.anniversary_recycler_view)
+        anniversaryRecyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+        anniversaryRecyclerView.adapter = anniversaryAdapter
 
         // 设置页：主题选项
         updateThemeCheckmarks()
-        findViewById<LinearLayout>(R.id.theme_option_default).setOnClickListener {
+        themeOptionDefault.setOnClickListener {
             applyAndSaveTheme(ThemeManager.THEME_DEFAULT)
         }
-        findViewById<LinearLayout>(R.id.theme_option_tech).setOnClickListener {
+        themeOptionTech.setOnClickListener {
             applyAndSaveTheme(ThemeManager.THEME_TECH)
         }
     }
@@ -196,7 +229,14 @@ class MainActivity : AppCompatActivity() {
         drawerFlipper.displayedChild = 1
     }
 
-    private fun closeSettingsPanel() {
+    private fun openAnniversaryPanel() {
+        loadAnniversaryData()
+        drawerFlipper.inAnimation = AnimationUtils.loadAnimation(this, R.anim.slide_in_from_right)
+        drawerFlipper.outAnimation = AnimationUtils.loadAnimation(this, R.anim.slide_out_to_left)
+        drawerFlipper.displayedChild = 2
+    }
+
+    private fun closeSubPanel() {
         drawerFlipper.inAnimation = AnimationUtils.loadAnimation(this, android.R.anim.slide_in_left)
         drawerFlipper.outAnimation = AnimationUtils.loadAnimation(this, android.R.anim.slide_out_right)
         drawerFlipper.displayedChild = 0
@@ -204,8 +244,102 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateThemeCheckmarks() {
         val current = ThemeManager.getCurrent(this)
-        themeCheckDefault.visibility = if (current == ThemeManager.THEME_DEFAULT) View.VISIBLE else View.GONE
-        themeCheckTech.visibility = if (current == ThemeManager.THEME_TECH) View.VISIBLE else View.GONE
+        val isDefault = current == ThemeManager.THEME_DEFAULT
+        themeOptionDefault.setBackgroundResource(
+            if (isDefault) R.drawable.bg_theme_option_selected else R.drawable.bg_theme_option_unselected
+        )
+        themeOptionTech.setBackgroundResource(
+            if (!isDefault) R.drawable.bg_theme_option_selected else R.drawable.bg_theme_option_unselected
+        )
+        themeIndicatorDefault.visibility = if (isDefault) View.VISIBLE else View.GONE
+        themeIndicatorTech.visibility = if (!isDefault) View.VISIBLE else View.GONE
+    }
+
+    private fun loadAnniversaryData() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val today = LocalDate.now()
+            val items = mutableListOf<CountdownItem>()
+
+            // 纪念日
+            val anniversaries = mapOf(
+                "见面纪念日" to (12 to 31),
+                "在一起的纪念日" to (12 to 2),
+                "情人节" to (2 to 14),
+                "520" to (5 to 20)
+            )
+            val lunarAnniversaries = mapOf(
+                "七夕节" to (7 to 7)
+            )
+            for ((name, date) in anniversaries) {
+                val nextDate = getNextGregorianDate(today, date.first, date.second)
+                items.add(createAnniversaryCountdownItem(name, nextDate, today))
+            }
+            for ((name, date) in lunarAnniversaries) {
+                val nextDate = LunarCalendar.getLunarDate(date.first, date.second)
+                items.add(createAnniversaryCountdownItem(name, nextDate, today))
+            }
+
+            // 生日
+            val birthdays = mapOf(
+                "小高的生日" to (10 to 27),
+                "小徐的生日" to (2 to 11)
+            )
+            for ((name, date) in birthdays) {
+                val nextDate = getNextGregorianDate(today, date.first, date.second)
+                items.add(createCountdownItem(name, nextDate, today))
+            }
+
+            // 节日
+            val gregorianHolidays = mapOf(
+                "元旦" to (1 to 1),
+                "清明节" to (4 to 5),
+                "劳动节" to (5 to 1),
+                "国庆节" to (10 to 1)
+            )
+            val lunarHolidays = mapOf(
+                "春节" to (1 to 1),
+                "端午节" to (5 to 5),
+                "中秋节" to (8 to 15)
+            )
+            for ((name, date) in gregorianHolidays) {
+                val nextDate = getNextGregorianDate(today, date.first, date.second)
+                items.add(createCountdownItem(name, nextDate, today))
+            }
+            for ((name, date) in lunarHolidays) {
+                val nextDate = LunarCalendar.getLunarDate(date.first, date.second)
+                items.add(createCountdownItem(name, nextDate, today))
+            }
+
+            items.sortBy { it.daysRemaining }
+
+            withContext(Dispatchers.Main) {
+                anniversaryAdapter.updateList(items)
+            }
+        }
+    }
+
+    private fun getNextGregorianDate(today: LocalDate, month: Int, day: Int): LocalDate {
+        var date = LocalDate.of(today.year, month, day)
+        if (date.isBefore(today)) date = date.plusYears(1)
+        return date
+    }
+
+    private fun createAnniversaryCountdownItem(name: String, nextDate: LocalDate, today: LocalDate): CountdownItem {
+        val daysRemaining = ChronoUnit.DAYS.between(today, nextDate)
+        val displayName = if (name == "在一起的纪念日" || name == "见面纪念日") {
+            val n = nextDate.year - 2024
+            if (n > 0) "第${n}个${name}" else name
+        } else name
+        val dateOverride = String.format("%d年%d月%d日", nextDate.year, nextDate.monthValue, nextDate.dayOfMonth)
+        return CountdownItem(name = displayName, month = nextDate.monthValue, day = nextDate.dayOfMonth,
+            dateOverride = dateOverride, daysRemaining = daysRemaining, isDeletable = false)
+    }
+
+    private fun createCountdownItem(name: String, nextDate: LocalDate, today: LocalDate): CountdownItem {
+        val daysRemaining = ChronoUnit.DAYS.between(today, nextDate)
+        val dateOverride = String.format("%d年%d月%d日", nextDate.year, nextDate.monthValue, nextDate.dayOfMonth)
+        return CountdownItem(name = name, month = nextDate.monthValue, day = nextDate.dayOfMonth,
+            dateOverride = dateOverride, daysRemaining = daysRemaining, isDeletable = false)
     }
 
     private fun applyAndSaveTheme(theme: String) {
@@ -217,8 +351,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupDrawerToggle() {
         val onBackPressedCallback = object : OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
-                if (drawerFlipper.displayedChild == 1) {
-                    closeSettingsPanel()
+                if (drawerFlipper.displayedChild != 0) {
+                    closeSubPanel()
                 } else {
                     drawerLayout.closeDrawer(GravityCompat.START)
                 }
@@ -251,8 +385,8 @@ class MainActivity : AppCompatActivity() {
         binding.bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.tab_second -> showFragment(PostFragment::class.java)
-                R.id.tab_third -> showFragment(DatecountFragment::class.java)
-                R.id.tab_fourth -> showFragment(MineFragment::class.java)
+                R.id.tab_third -> showFragment(SudokuFragment::class.java)
+                R.id.tab_fourth -> showFragment(CoupleFragment::class.java)
                 else -> showFragment(WelcomeFragment::class.java)
             }
             true
@@ -323,7 +457,13 @@ class MainActivity : AppCompatActivity() {
                 transaction.add(binding.fragmentContainerView.id, it, fragmentTag)
             }
         transaction.show(targetFragment)
+        val prevFragment = currentFragment
         currentFragment = targetFragment
+        transaction.runOnCommit {
+            // Notify WelcomeFragment of visibility changes
+            (prevFragment as? WelcomeFragment)?.onBecomeHidden()
+            (targetFragment as? WelcomeFragment)?.onBecomeVisible()
+        }
         transaction.commit()
     }
 
