@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.heyu.zhudeapp.data.Post
 import kotlinx.coroutines.flow.Flow
 
@@ -14,6 +15,12 @@ interface PostDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPosts(posts: List<Post>)
+
+    @Transaction
+    suspend fun replaceAllPosts(posts: List<Post>) {
+        deleteAll()
+        insertPosts(posts)
+    }
 
     @Query("DELETE FROM posts")
     suspend fun deleteAll()

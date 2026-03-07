@@ -19,6 +19,7 @@
         <item name="countdownBgHoliday">@drawable/holiday</item>
         <item name="countdownCardBackground">#B3FFFFFF</item>
         <item name="countdownDaysColor">@color/lightred</item>
+        <item name="appBackground">?android:attr/colorBackground</item>
     </style>
     <style name="Theme.ZhudeApp" parent="Base.Theme.ZhudeApp" />
 
@@ -49,6 +50,7 @@
         <item name="interactionTextColor">@color/tech_primary</item>
         <item name="bottomNavBackgroundColor">@drawable/bg_tech_bottom_nav</item>
         <item name="pageBackground">@drawable/bg_tech_gradient</item>
+        <item name="appBackground">@drawable/bg_tech_gradient</item>
         <item name="daysTextColor">@color/tech_days_text</item>
         <item name="daysNumberColor">@color/tech_days_number</item>
         <item name="commentInputBackground">@drawable/bg_tech_comment_input</item>

@@ -24,8 +24,8 @@ class PostRepository(context: Context) {
             // 使用优化后的嵌套查询一次性拿回所有数据
             val remotePosts = HeyuModule.getPosts()
             if (remotePosts.isNotEmpty()) {
-                // 更新本地缓存：存在的会被替换（更新），不存在的会被插入
-                postDao.insertPosts(remotePosts)
+                // 全量替换本地缓存，确保头像等用户信息与服务器一致
+                postDao.replaceAllPosts(remotePosts)
             }
         } catch (e: Exception) {
             Log.e("PostRepository", "网络同步失败，将继续使用本地缓存: ${e.message}")

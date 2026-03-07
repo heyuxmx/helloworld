@@ -8,6 +8,8 @@
     <attr name="bottomNavBackgroundColor" format="color|reference" />
     <!-- 动态页面背景 -->
     <attr name="pageBackground" format="reference" />
+    <!-- 通用页面背景（非动态页） -->
+    <attr name="appBackground" format="color|reference" />
     <!-- 在一起天数文字颜色 -->
     <attr name="daysTextColor" format="color" />
     <attr name="daysNumberColor" format="color" />

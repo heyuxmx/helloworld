@@ -40,12 +40,17 @@ class UserManagementViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             try {
                 val userId = _currentUser.value?.id ?: throw IllegalStateException("User ID is not available.")
-                val imageBytes = HeyuModule.compressImage(getApplication(), uri)
+                // 使用更适合头像的压缩参数：最大尺寸512，质量80
+                val imageBytes = HeyuModule.compressImage(getApplication(), uri, maxDimension = 512, quality = 80)
+                if (imageBytes.isEmpty()) {
+                    _error.postValue("图片处理失败，请重试")
+                    return@launch
+                }
                 HeyuModule.uploadAvatar(userId, imageBytes)
                 fetchCurrentUser()
                 _uploadSuccess.postValue(true)
             } catch (e: Exception) {
-                _error.postValue("Avatar upload failed: ${e.message}")
+                _error.postValue("头像上传失败: ${e.message}")
             }
         }
     }

@@ -20,6 +20,7 @@ class SudokuView @JvmOverloads constructor(
     private var errors = BooleanArray(81)
     private var selected = -1
     private var cellSize = 0f
+    private var drafts = Array(81) { emptySet<Int>() }
 
     private val density = context.resources.displayMetrics.density
 
@@ -56,14 +57,22 @@ class SudokuView @JvmOverloads constructor(
         color = Color.parseColor("#E03040"); textAlign = Paint.Align.CENTER
         typeface = Typeface.DEFAULT_BOLD; isAntiAlias = true
     }
+    private val draftTextPaint = Paint().apply {
+        color = Color.parseColor("#999999"); textAlign = Paint.Align.CENTER
+        isAntiAlias = true
+    }
 
     var onCellTapped: ((Int) -> Unit)? = null
 
-    fun setBoard(cells: IntArray, given: BooleanArray, errors: BooleanArray, selectedCell: Int) {
+    fun setBoard(
+        cells: IntArray, given: BooleanArray, errors: BooleanArray,
+        selectedCell: Int, drafts: Array<Set<Int>> = Array(81) { emptySet() }
+    ) {
         this.cells = cells.copyOf()
         this.given = given.copyOf()
         this.errors = errors.copyOf()
         this.selected = selectedCell
+        this.drafts = drafts.map { it.toSet() }.toTypedArray()
         invalidate()
     }
 
@@ -80,6 +89,7 @@ class SudokuView @JvmOverloads constructor(
         givenTextPaint.textSize = textSize
         userTextPaint.textSize = textSize
         errorTextPaint.textSize = textSize
+        draftTextPaint.textSize = cellSize * 0.28f
 
         val selectedNum = if (selected in 0..80 && cells[selected] != 0) cells[selected] else 0
 
@@ -111,19 +121,38 @@ class SudokuView @JvmOverloads constructor(
         // Numbers
         for (i in 0..80) {
             val num = cells[i]
-            if (num == 0) continue
-            val r = i / 9
-            val c = i % 9
-            val x = c * cellSize + cellSize / 2
-            val y = r * cellSize + cellSize / 2
+            if (num != 0) {
+                val r = i / 9
+                val c = i % 9
+                val x = c * cellSize + cellSize / 2
+                val y = r * cellSize + cellSize / 2
 
-            val paint = when {
-                errors[i] -> errorTextPaint
-                given[i] -> givenTextPaint
-                else -> userTextPaint
+                val paint = when {
+                    errors[i] -> errorTextPaint
+                    given[i] -> givenTextPaint
+                    else -> userTextPaint
+                }
+                val textY = y - (paint.descent() + paint.ascent()) / 2
+                canvas.drawText(num.toString(), x, textY, paint)
+            } else {
+                // Draw draft numbers as a 3x3 mini-grid
+                val ds = drafts[i]
+                if (ds.isNotEmpty()) {
+                    val row = i / 9
+                    val col = i % 9
+                    val cellX = col * cellSize
+                    val cellY = row * cellSize
+
+                    for (n in ds) {
+                        val dr = (n - 1) / 3  // 0, 1, 2
+                        val dc = (n - 1) % 3  // 0, 1, 2
+                        val nx = cellX + cellSize * (dc * 2 + 1) / 6
+                        val ny = cellY + cellSize * (dr * 2 + 1) / 6
+                        val ty = ny - (draftTextPaint.descent() + draftTextPaint.ascent()) / 2
+                        canvas.drawText(n.toString(), nx, ty, draftTextPaint)
+                    }
+                }
             }
-            val textY = y - (paint.descent() + paint.ascent()) / 2
-            canvas.drawText(num.toString(), x, textY, paint)
         }
     }
 

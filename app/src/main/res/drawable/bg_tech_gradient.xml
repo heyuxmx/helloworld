@@ -1,9 +1,81 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <gradient
-        android:type="linear"
-        android:angle="180"
-        android:startColor="#050A14"
-        android:centerColor="#0A1628"
-        android:endColor="#060D1A" />
-</shape>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 底层：深蓝到深紫的对角渐变 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="225"
+                android:startColor="#141E30"
+                android:centerColor="#0F1A2E"
+                android:endColor="#1A0E2E" />
+        </shape>
+    </item>
+
+    <!-- 左上角：靛蓝光晕 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="70%p"
+                android:centerX="0.0"
+                android:centerY="0.0"
+                android:startColor="#801A3050"
+                android:endColor="#00000000" />
+        </shape>
+    </item>
+
+    <!-- 右上角：青蓝光晕 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="55%p"
+                android:centerX="1.0"
+                android:centerY="0.05"
+                android:startColor="#6008304A"
+                android:endColor="#00000000" />
+        </shape>
+    </item>
+
+    <!-- 中左：紫色光晕 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="50%p"
+                android:centerX="0.1"
+                android:centerY="0.5"
+                android:startColor="#70301050"
+                android:endColor="#00000000" />
+        </shape>
+    </item>
+
+    <!-- 右下角：深蓝绿光晕 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="65%p"
+                android:centerX="0.9"
+                android:centerY="0.85"
+                android:startColor="#70103048"
+                android:endColor="#00000000" />
+        </shape>
+    </item>
+
+    <!-- 底部中央：青色辉光 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="45%p"
+                android:centerX="0.5"
+                android:centerY="1.0"
+                android:startColor="#5500708A"
+                android:endColor="#00000000" />
+        </shape>
+    </item>
+
+</layer-list>

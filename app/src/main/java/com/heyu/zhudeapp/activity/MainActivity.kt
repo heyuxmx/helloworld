@@ -40,7 +40,7 @@ import com.canhub.cropper.CropImageOptions
 import com.canhub.cropper.CropImageView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.heyu.zhudeapp.BuildConfig
-import com.heyu.zhudeapp.Fragment.game.SudokuFragment
+import com.heyu.zhudeapp.Fragment.game.GameHubFragment
 import com.heyu.zhudeapp.Fragment.post.PostFragment
 import com.heyu.zhudeapp.Fragment.welcome.CoupleFragment
 import com.heyu.zhudeapp.Fragment.welcome.WelcomeFragment
@@ -82,6 +82,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var themeIndicatorTech: View
     private lateinit var anniversaryAdapter: CountdownAdapter
 
+    private var uploadProgressDialog: android.app.AlertDialog? = null
+
     companion object {
         const val EXTRA_CHANGE_AVATAR_REQUEST = "EXTRA_CHANGE_AVATAR_REQUEST"
     }
@@ -95,6 +97,24 @@ class MainActivity : AppCompatActivity() {
 
     private val imageViewerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data?.getBooleanExtra(EXTRA_CHANGE_AVATAR_REQUEST, false) == true) {
+            // 直接从相册选择图片
+            openImagePicker()
+        }
+    }
+
+    private val cropImageLauncher = registerForActivityResult(CropImageContract()) { result ->
+        if (result.isSuccessful) {
+            result.uriContent?.let { uri ->
+                showUploadProgressDialog()
+                userManagementViewModel.uploadAndupdateAvatar(uri)
+            }
+        } else {
+            Toast.makeText(this, "图片裁剪失败: ${result.error?.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val imagePickerLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
             val cropOptions = CropImageOptions(
                 guidelines = CropImageView.Guidelines.ON,
                 cropShape = CropImageView.CropShape.OVAL,
@@ -102,18 +122,7 @@ class MainActivity : AppCompatActivity() {
                 aspectRatioY = 1,
                 fixAspectRatio = true
             )
-            cropImageLauncher.launch(CropImageContractOptions(null, cropOptions))
-        }
-    }
-
-    private val cropImageLauncher = registerForActivityResult(CropImageContract()) { result ->
-        if (result.isSuccessful) {
-            result.uriContent?.let { uri ->
-                userManagementViewModel.uploadAndupdateAvatar(uri)
-                Toast.makeText(this, "正在上传头像...", Toast.LENGTH_SHORT).show()
-            }
-        } else {
-            Toast.makeText(this, "图片裁剪失败: ${result.error?.message}", Toast.LENGTH_SHORT).show()
+            cropImageLauncher.launch(CropImageContractOptions(uri, cropOptions))
         }
     }
 
@@ -154,6 +163,20 @@ class MainActivity : AppCompatActivity() {
             updateNavHeader(user)
         }
         userManagementViewModel.fetchCurrentUser()
+
+        // Observe avatar upload success/failure
+        userManagementViewModel.uploadSuccess.observe(this) { success ->
+            if (success) {
+                dismissUploadProgressDialog()
+                Toast.makeText(this, "头像更新成功", Toast.LENGTH_SHORT).show()
+            }
+        }
+        userManagementViewModel.error.observe(this) { error ->
+            if (!error.isNullOrEmpty()) {
+                dismissUploadProgressDialog()
+                Toast.makeText(this, error, Toast.LENGTH_LONG).show()
+            }
+        }
 
         supportFragmentManager.setFragmentResultListener("profile_updated", this) { _, _ ->
             userManagementViewModel.fetchCurrentUser()
@@ -385,7 +408,7 @@ class MainActivity : AppCompatActivity() {
         binding.bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.tab_second -> showFragment(PostFragment::class.java)
-                R.id.tab_third -> showFragment(SudokuFragment::class.java)
+                R.id.tab_third -> showFragment(GameHubFragment::class.java)
                 R.id.tab_fourth -> showFragment(CoupleFragment::class.java)
                 else -> showFragment(WelcomeFragment::class.java)
             }
@@ -403,10 +426,7 @@ class MainActivity : AppCompatActivity() {
                 .into(navHeaderProfileImage)
 
             navHeaderProfileImage.setOnClickListener {
-                val intent = Intent(this, ProfileActivity::class.java).apply {
-                    putExtra(ProfileActivity.EXTRA_IMAGE_URL, userProfile.avatarUrl)
-                }
-                imageViewerLauncher.launch(intent)
+                showAvatarOptions(userProfile)
             }
 
             editUsernameButton.setOnClickListener {
@@ -534,6 +554,53 @@ class MainActivity : AppCompatActivity() {
                 e.printStackTrace()
             }
         }
+    }
+
+    private fun showAvatarOptions(userProfile: UserProfile) {
+        val options = arrayOf("查看大图", "从相册选择", "拍照")
+        MaterialAlertDialogBuilder(this)
+            .setTitle("头像操作")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> { // 查看大图
+                        val intent = Intent(this, ProfileActivity::class.java).apply {
+                            putExtra(ProfileActivity.EXTRA_IMAGE_URL, userProfile.avatarUrl)
+                        }
+                        imageViewerLauncher.launch(intent)
+                    }
+                    1 -> { // 从相册选择
+                        openImagePicker()
+                    }
+                    2 -> { // 拍照
+                        openCamera()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun openImagePicker() {
+        imagePickerLauncher.launch("image/*")
+    }
+
+    private fun openCamera() {
+        // 暂时使用相册选择，相机功能需要更多权限和文件处理
+        openImagePicker()
+    }
+
+    private fun showUploadProgressDialog() {
+        uploadProgressDialog = android.app.AlertDialog.Builder(this)
+            .setTitle("上传头像")
+            .setMessage("正在上传头像，请稍候...")
+            .setCancelable(false)
+            .create()
+        uploadProgressDialog?.show()
+    }
+
+    private fun dismissUploadProgressDialog() {
+        uploadProgressDialog?.dismiss()
+        uploadProgressDialog = null
     }
 
     private fun showUpdateDialog(downloadUrl: String) {
