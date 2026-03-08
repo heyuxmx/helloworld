@@ -2,11 +2,17 @@ package com.heyu.zhudeapp.activity
 
 import android.Manifest
 import android.app.Activity
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
@@ -33,6 +39,7 @@ import androidx.core.view.updatePadding
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.core.content.FileProvider
 import com.bumptech.glide.Glide
 import com.canhub.cropper.CropImageContract
 import com.canhub.cropper.CropImageContractOptions
@@ -61,6 +68,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import java.io.File
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -82,10 +90,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var themeIndicatorTech: View
     private lateinit var anniversaryAdapter: CountdownAdapter
 
-    private var uploadProgressDialog: android.app.AlertDialog? = null
-
-    companion object {
-        const val EXTRA_CHANGE_AVATAR_REQUEST = "EXTRA_CHANGE_AVATAR_REQUEST"
+    private var uploadProgressDialog: androidx.appcompat.app.AlertDialog? = null
+    private var apkDownloadId: Long = -1
+    private val apkDownloadReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
+            if (id == apkDownloadId) {
+                triggerApkInstall()
+            }
+        }
     }
 
     private val requestPermissionLauncher =
@@ -95,11 +108,32 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    private val imageViewerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK && result.data?.getBooleanExtra(EXTRA_CHANGE_AVATAR_REQUEST, false) == true) {
-            // 直接从相册选择图片
-            openImagePicker()
+    private val requestCameraPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
+                launchCamera()
+            } else {
+                Toast.makeText(this, "需要相机权限才能拍照", Toast.LENGTH_SHORT).show()
+            }
         }
+
+    private val imageViewerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
+
+    private var cameraImageUri: Uri? = null
+    private val cameraLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (success) {
+            cameraImageUri?.let { uri ->
+                val cropOptions = CropImageOptions(
+                    guidelines = CropImageView.Guidelines.ON,
+                    cropShape = CropImageView.CropShape.OVAL,
+                    aspectRatioX = 1,
+                    aspectRatioY = 1,
+                    fixAspectRatio = true
+                )
+                cropImageLauncher.launch(CropImageContractOptions(uri, cropOptions))
+            }
+        }
+        // 用户取消拍照不做任何处理
     }
 
     private val cropImageLauncher = registerForActivityResult(CropImageContract()) { result ->
@@ -109,7 +143,8 @@ class MainActivity : AppCompatActivity() {
                 userManagementViewModel.uploadAndupdateAvatar(uri)
             }
         } else {
-            Toast.makeText(this, "图片裁剪失败: ${result.error?.message}", Toast.LENGTH_SHORT).show()
+            // 用户取消裁剪（按返回键）或裁剪出错，重新打开图片选择器
+            openImagePicker()
         }
     }
 
@@ -185,7 +220,6 @@ class MainActivity : AppCompatActivity() {
 
         checkForUpdates()
         requestSmsPermission()
-        checkUpdateAnnouncement()
     }
 
     private fun setupDrawerViews() {
@@ -442,9 +476,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun showEditUsernameDialog(currentUsername: String) {
         val editText = EditText(this).apply { setText(currentUsername) }
+        val container = android.widget.FrameLayout(this).apply {
+            val h = (24 * resources.displayMetrics.density).toInt()
+            setPadding(h, 0, h, 0)
+            addView(editText)
+        }
         MaterialAlertDialogBuilder(this)
             .setTitle("修改用户名")
-            .setView(editText)
+            .setView(container)
             .setNegativeButton("取消", null)
             .setPositiveButton("保存") { _, _ ->
                 val newUsername = editText.text.toString().trim()
@@ -465,6 +504,22 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(apkDownloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(apkDownloadReceiver, filter)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try { unregisterReceiver(apkDownloadReceiver) } catch (_: Exception) {}
     }
 
     private fun showFragment(fragmentClass: Class<out Fragment>) {
@@ -494,29 +549,6 @@ class MainActivity : AppCompatActivity() {
             .setItems(users) { _, which ->
                 userManagementViewModel.switchUser(users[which])
             }
-            .setCancelable(false)
-            .show()
-    }
-
-    private fun checkUpdateAnnouncement() {
-        val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        val lastSeenVersion = prefs.getInt("last_seen_version", 0)
-        if (BuildConfig.VERSION_CODE > lastSeenVersion) {
-            showNewVersionFeaturesDialog()
-            prefs.edit().putInt("last_seen_version", BuildConfig.VERSION_CODE).apply()
-        }
-    }
-
-    private fun showNewVersionFeaturesDialog() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("🚀 发现新版本特性")
-            .setMessage(
-                "本次更新带飞你的体验：\n\n" +
-                "1️⃣ 【退出登录】功能上线，支持随时切号或重新登录。\n" +
-                "2️⃣ 【极致刷图】引入1GB暴力本地缓存，图片加载速度提升300%，滑得再快也不卡顿。\n" +
-                "3️⃣ 【原像素视频】支持保存原像素视频到本地库，看过的视频 0 毫秒秒开，画质拉满。"
-            )
-            .setPositiveButton("知道了，这就去爽") { dialog, _ -> dialog.dismiss() }
             .setCancelable(false)
             .show()
     }
@@ -585,12 +617,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openCamera() {
-        // 暂时使用相册选择，相机功能需要更多权限和文件处理
-        openImagePicker()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED) {
+            launchCamera()
+        } else {
+            requestCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun launchCamera() {
+        val photoFile = File(cacheDir, "camera/avatar_${System.currentTimeMillis()}.jpg")
+            .also { it.parentFile?.mkdirs() }
+        val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", photoFile)
+        cameraImageUri = uri
+        cameraLauncher.launch(uri)
     }
 
     private fun showUploadProgressDialog() {
-        uploadProgressDialog = android.app.AlertDialog.Builder(this)
+        uploadProgressDialog = MaterialAlertDialogBuilder(this)
             .setTitle("上传头像")
             .setMessage("正在上传头像，请稍候...")
             .setCancelable(false)
@@ -607,11 +651,56 @@ class MainActivity : AppCompatActivity() {
         MaterialAlertDialogBuilder(this)
             .setTitle("发现新版本")
             .setMessage("不更新你就是🐖中🐖")
-            .setPositiveButton("立即更新") { _, _ ->
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl)))
-            }
+            .setPositiveButton("立即更新") { _, _ -> downloadApk(downloadUrl) }
             .setNegativeButton("我是猪", null)
             .setCancelable(false)
             .show()
+    }
+
+    private fun downloadApk(downloadUrl: String) {
+        val fileName = "zhude_update.apk"
+        // 删除旧文件避免重复
+        getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?.resolve(fileName)?.takeIf { it.exists() }?.delete()
+
+        val request = DownloadManager.Request(Uri.parse(downloadUrl))
+            .setTitle("猪的App 更新下载")
+            .setDescription("正在下载新版本，请稍候...")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, fileName)
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(true)
+
+        val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        apkDownloadId = dm.enqueue(request)
+        Toast.makeText(this, "下载已开始，完成后将自动提示安装", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun triggerApkInstall() {
+        val apkFile = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?.resolve("zhude_update.apk") ?: return
+
+        if (!apkFile.exists()) return
+
+        // API 26+ 需检查"安装未知来源"开关
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            && !packageManager.canRequestPackageInstalls()) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("需要权限")
+                .setMessage("请在设置中允许安装未知来源的应用，然后重新点击安装。")
+                .setPositiveButton("去设置") { _, _ ->
+                    startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:$packageName")))
+                }
+                .setNegativeButton("取消", null)
+                .show()
+            return
+        }
+
+        val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", apkFile)
+        startActivity(Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
     }
 }

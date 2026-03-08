@@ -118,7 +118,7 @@
             android:paddingTop="8dp"
             android:paddingBottom="12dp">
 
-            <!-- 方向键区域 (T字形排布) -->
+            <!-- 方向键区域 (WASD排布：上一下三) -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -126,7 +126,18 @@
                 android:orientation="vertical"
                 android:gravity="center">
 
-                <!-- 第一行：左 上 右 -->
+                <!-- 第一行：上 -->
+                <ImageButton
+                    android:id="@+id/btn_up"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:layout_margin="4dp"
+                    android:background="@android:color/transparent"
+                    android:src="@drawable/ic_arrow_up"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="向上" />
+
+                <!-- 第二行：左 下 右 -->
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -144,16 +155,16 @@
                         android:scaleType="fitCenter"
                         android:contentDescription="向左" />
 
-                    <!-- 上 -->
+                    <!-- 下 -->
                     <ImageButton
-                        android:id="@+id/btn_up"
+                        android:id="@+id/btn_down"
                         android:layout_width="56dp"
                         android:layout_height="56dp"
                         android:layout_margin="4dp"
                         android:background="@android:color/transparent"
-                        android:src="@drawable/ic_arrow_up"
+                        android:src="@drawable/ic_arrow_down"
                         android:scaleType="fitCenter"
-                        android:contentDescription="向上" />
+                        android:contentDescription="向下" />
 
                     <!-- 右 -->
                     <ImageButton
@@ -166,17 +177,6 @@
                         android:scaleType="fitCenter"
                         android:contentDescription="向右" />
                 </LinearLayout>
-
-                <!-- 第二行：下 -->
-                <ImageButton
-                    android:id="@+id/btn_down"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:layout_margin="4dp"
-                    android:background="@android:color/transparent"
-                    android:src="@drawable/ic_arrow_down"
-                    android:scaleType="fitCenter"
-                    android:contentDescription="向下" />
             </LinearLayout>
 
             <!-- 操作按钮 -->

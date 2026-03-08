@@ -36,8 +36,8 @@ android {
         applicationId = "com.heyu.zhudeapp"
         minSdk = 24
         targetSdk = 34
-        versionCode = 9 // 增加版本号以确保覆盖安装成功
-        versionName = "1.0.8"
+        versionCode = 10 // 增加版本号以确保覆盖安装成功
+        versionName = "2.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -62,6 +62,7 @@ android {
         }
     }
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -84,11 +85,21 @@ android {
         }
     }
 
+    applicationVariants.all {
+        val variant = this
+        variant.outputs
+            .map { it as com.android.build.gradle.internal.api.BaseVariantOutputImpl }
+            .forEach { output ->
+                output.outputFileName = "zhudeapp-latest.apk"
+            }
+    }
+
 }
 
 // 移除之前的 exclude(group = "androidx.profileinstaller") 块，解决 INSTALL_BASELINE_PROFILE_FAILED 报错
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation("androidx.core:core-ktx:1.13.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")

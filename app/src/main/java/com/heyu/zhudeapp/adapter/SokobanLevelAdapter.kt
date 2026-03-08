@@ -82,8 +82,7 @@ class SokobanLevelAdapter(
         prefs.getBoolean("level_${levelId}_cleared", false)
 
     fun isLevelUnlocked(levelId: Int): Boolean {
-        if (levelId == 1) return true
-        return prefs.getBoolean("level_${levelId - 1}_cleared", false)
+        return true // 解除关卡限制，所有关卡都可玩
     }
 
     fun getBestSteps(levelId: Int): Int =

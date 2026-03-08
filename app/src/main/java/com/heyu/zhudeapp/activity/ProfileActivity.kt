@@ -1,7 +1,5 @@
 package com.heyu.zhudeapp.activity
 
-import android.app.Activity
-import android.content.Intent
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.View
@@ -20,8 +18,6 @@ class ProfileActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_IMAGE_URL = "image_url"
-        // THIS IS THE KEY. It MUST match the one in MainActivity.
-        const val EXTRA_CHANGE_AVATAR_REQUEST = "EXTRA_CHANGE_AVATAR_REQUEST"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,11 +50,5 @@ class ProfileActivity : AppCompatActivity() {
             // Handle the case where the URL is null
         }
 
-        binding.btnChangeAvatar.setOnClickListener {
-            val resultIntent = Intent()
-            resultIntent.putExtra(EXTRA_CHANGE_AVATAR_REQUEST, true)
-            setResult(Activity.RESULT_OK, resultIntent)
-            finish()
-        }
     }
 }

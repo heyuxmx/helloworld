@@ -157,9 +157,7 @@ class SokobanView @JvmOverloads constructor(
     }
 
     private fun drawCell(canvas: Canvas, cell: Int, x: Float, y: Float, isTech: Boolean) {
-        // 地板和墙壁完全填满格子，无间距
         val fullRect = RectF(x, y, x + cellSize, y + cellSize)
-        // 箱子和玩家保留小间距
         val padding = cellSize * 0.06f
         val paddedRect = RectF(x + padding, y + padding, x + cellSize - padding, y + cellSize - padding)
         val cornerRadius = cellSize * 0.15f
@@ -171,19 +169,19 @@ class SokobanView @JvmOverloads constructor(
             3 -> drawTarget(canvas, fullRect, cornerRadius)
             4 -> {
                 drawFloor(canvas, fullRect, cornerRadius)
-                drawBox(canvas, paddedRect, cornerRadius, false, isTech)
+                drawBox(canvas, fullRect, cornerRadius, false, isTech)
             }
             5 -> {
                 drawTarget(canvas, fullRect, cornerRadius)
-                drawBox(canvas, paddedRect, cornerRadius, true, isTech)
+                drawBox(canvas, fullRect, cornerRadius, true, isTech)
             }
             6 -> {
                 drawFloor(canvas, fullRect, cornerRadius)
-                drawPlayer(canvas, paddedRect)
+                drawPlayer(canvas, fullRect)
             }
             7 -> {
                 drawTarget(canvas, fullRect, cornerRadius)
-                drawPlayer(canvas, paddedRect)
+                drawPlayer(canvas, fullRect)
             }
         }
     }
@@ -253,8 +251,7 @@ class SokobanView @JvmOverloads constructor(
     }
 
     private fun drawBox(canvas: Canvas, rect: RectF, radius: Float, onTarget: Boolean, isTech: Boolean) {
-        val inset = cellSize * 0.1f
-        val boxRect = RectF(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset)
+        val boxRect = RectF(rect)
 
         if (boxDrawable != null && !onTarget) {
             // 阴影
@@ -310,8 +307,7 @@ class SokobanView @JvmOverloads constructor(
     }
 
     private fun drawPlayer(canvas: Canvas, rect: RectF) {
-        val inset = cellSize * 0.12f
-        val playerRect = RectF(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset)
+        val playerRect = RectF(rect)
 
         if (playerDrawable != null) {
             playerDrawable!!.setBounds(

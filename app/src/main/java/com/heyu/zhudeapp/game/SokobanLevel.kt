@@ -212,6 +212,140 @@ data class SokobanLevel(
             """)
         )
 
+        /**
+         * 从 level0.txt 格式解析关卡列表
+         *
+         * level0.txt 编码（JavaScript 数组格式）:
+         * - 0 = 地板（墙内）或空白（墙外）
+         * - 1 = 围墙
+         * - 2 = 目标点
+         * - 3 = 箱子（在地板上）
+         * - 4 = 人物（玩家）
+         * - 5 = 箱子在目标点上
+         *
+         * 解析后映射到 SokobanLevel 编码:
+         * 0(墙外空白)→0, 0(墙内地板)→1, 1→2, 2→3, 3→4, 4→6, 5→5
+         * 墙内/墙外的区分使用从边界泛洪填充算法完成。
+         */
+        fun parseLevel0Array(content: String): List<SokobanLevel> {
+            val levels = mutableListOf<SokobanLevel>()
+            var id = 1
+
+            // 匹配每个 levels[n]=[...]; 块
+            val levelPattern = Regex("""levels\[\d+]=\[([\s\S]*?)];\s*""")
+            for (match in levelPattern.findAll(content)) {
+                val body = match.groupValues[1]
+
+                // 解析每行 [a,b,c,...] 数字数组
+                val rowPattern = Regex("""\[([0-9,\s]+)]""")
+                val grid = mutableListOf<IntArray>()
+                for (rowMatch in rowPattern.findAll(body)) {
+                    val nums = rowMatch.groupValues[1]
+                        .split(",")
+                        .map { it.trim().toIntOrNull() ?: 0 }
+                        .toIntArray()
+                    grid.add(nums)
+                }
+                if (grid.isEmpty()) continue
+
+                val rawRows = grid.size
+                val rawCols = grid.maxOf { it.size }
+
+                // 第一步：初步映射，0 先标记为 -1（待定：墙外空白 or 墙内地板）
+                val rawMap = IntArray(rawRows * rawCols)
+                for (r in 0 until rawRows) {
+                    val row = grid[r]
+                    for (c in 0 until rawCols) {
+                        val v = if (c < row.size) row[c] else 0
+                        rawMap[r * rawCols + c] = when (v) {
+                            0 -> -1  // 待定
+                            1 -> 2   // 围墙 → 墙壁
+                            2 -> 3   // 目标点
+                            3 -> 4   // 箱子在地板上
+                            4 -> 6   // 玩家在地板上
+                            5 -> 5   // 箱子在目标点上
+                            else -> 0
+                        }
+                    }
+                }
+
+                // 第二步：从边界泛洪填充，找出所有墙外的 -1（标记为已访问）
+                val visited = BooleanArray(rawRows * rawCols)
+                val queue = ArrayDeque<Int>()
+                for (r in 0 until rawRows) {
+                    for (c in 0 until rawCols) {
+                        val idx = r * rawCols + c
+                        if ((r == 0 || r == rawRows - 1 || c == 0 || c == rawCols - 1) &&
+                            rawMap[idx] == -1 && !visited[idx]) {
+                            visited[idx] = true
+                            queue.add(idx)
+                        }
+                    }
+                }
+                while (queue.isNotEmpty()) {
+                    val pos = queue.removeFirst()
+                    val pr = pos / rawCols
+                    val pc = pos % rawCols
+                    for ((dr, dc) in listOf(-1 to 0, 1 to 0, 0 to -1, 0 to 1)) {
+                        val nr = pr + dr
+                        val nc = pc + dc
+                        if (nr < 0 || nr >= rawRows || nc < 0 || nc >= rawCols) continue
+                        val ni = nr * rawCols + nc
+                        if (!visited[ni] && rawMap[ni] == -1) {
+                            visited[ni] = true
+                            queue.add(ni)
+                        }
+                    }
+                }
+
+                // 第三步：墙外 -1 → 0（空白），墙内 -1 → 1（地板）
+                for (i in rawMap.indices) {
+                    if (rawMap[i] == -1) {
+                        rawMap[i] = if (visited[i]) 0 else 1
+                    }
+                }
+
+                // 第四步：裁剪到非零区域的最小包围盒
+                var minR = rawRows; var maxR = -1; var minC = rawCols; var maxC = -1
+                for (r in 0 until rawRows) {
+                    for (c in 0 until rawCols) {
+                        if (rawMap[r * rawCols + c] != 0) {
+                            if (r < minR) minR = r
+                            if (r > maxR) maxR = r
+                            if (c < minC) minC = c
+                            if (c > maxC) maxC = c
+                        }
+                    }
+                }
+                if (maxR < 0) continue
+
+                val rows = maxR - minR + 1
+                val cols = maxC - minC + 1
+                val map = IntArray(rows * cols)
+                for (r in 0 until rows) {
+                    for (c in 0 until cols) {
+                        map[r * cols + c] = rawMap[(r + minR) * rawCols + (c + minC)]
+                    }
+                }
+
+                // 验证：必须有玩家和箱子
+                val playerCount = map.count { it == 6 || it == 7 }
+                val boxCount = map.count { it == 4 || it == 5 }
+                if (playerCount == 0 || boxCount == 0) continue
+
+                val difficulty = when {
+                    boxCount <= 2 -> Difficulty.EASY
+                    boxCount <= 4 -> Difficulty.MEDIUM
+                    else -> Difficulty.HARD
+                }
+
+                levels.add(SokobanLevel(id, "第${id}关", difficulty, rows, cols, map))
+                id++
+            }
+
+            return levels
+        }
+
         private fun level(
             id: Int, name: String, diff: Difficulty,
             rows: Int, cols: Int, mapStr: String

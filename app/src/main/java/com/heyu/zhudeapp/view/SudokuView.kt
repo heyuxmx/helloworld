@@ -50,8 +50,8 @@ class SudokuView @JvmOverloads constructor(
         typeface = Typeface.DEFAULT_BOLD; isAntiAlias = true
     }
     private val userTextPaint = Paint().apply {
-        color = Color.parseColor("#E8578A"); textAlign = Paint.Align.CENTER
-        isAntiAlias = true
+        color = Color.parseColor("#2EAA5A"); textAlign = Paint.Align.CENTER
+        typeface = Typeface.DEFAULT_BOLD; isAntiAlias = true
     }
     private val errorTextPaint = Paint().apply {
         color = Color.parseColor("#E03040"); textAlign = Paint.Align.CENTER

@@ -3,11 +3,13 @@ package com.heyu.zhudeapp.Fragment.game
 import android.content.Context
 import android.graphics.Color
 import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.media.SoundPool
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -40,7 +42,7 @@ class SokobanFragment : Fragment() {
 
     private var engine: SokobanEngine? = null
     private var currentLevel: SokobanLevel? = null
-    private val allLevels = SokobanLevel.getAllLevels()
+    private lateinit var allLevels: List<SokobanLevel>
 
     private lateinit var adapter: SokobanLevelAdapter
 
@@ -49,6 +51,7 @@ class SokobanFragment : Fragment() {
     private var soundPushId = 0
     private var soundCompleteId = 0
     private lateinit var vibrator: Vibrator
+    private var bgMusicPlayer: MediaPlayer? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -68,11 +71,14 @@ class SokobanFragment : Fragment() {
         btnLevelList = view.findViewById(R.id.btn_level_list)
         rvLevels = view.findViewById(R.id.rv_levels)
 
-        // 关卡列表
+        // 先设置布局管理器
+        rvLevels.layoutManager = LinearLayoutManager(requireContext())
+
+        // 加载关卡（优先从 raw/level.txt 解析，失败则使用内置关卡）
+        allLevels = loadLevelsFromRaw()
         adapter = SokobanLevelAdapter(requireContext(), allLevels) { level ->
             startLevel(level)
         }
-        rvLevels.layoutManager = LinearLayoutManager(requireContext())
         rvLevels.adapter = adapter
 
         // 方向键
@@ -137,13 +143,14 @@ class SokobanFragment : Fragment() {
     private fun startLevel(level: SokobanLevel) {
         currentLevel = level
         engine = SokobanEngine(level)
-        tvLevelName.text = "第${level.id}关 ${level.name}"
+        tvLevelName.text = level.name
         btnNextLevel.visibility = View.GONE
         updateBoard()
         updateSteps()
 
         levelSelectContainer.visibility = View.GONE
         gameContainer.visibility = View.VISIBLE
+        startBgMusic()
     }
 
     private fun move(dir: SokobanEngine.Direction) {
@@ -193,6 +200,7 @@ class SokobanFragment : Fragment() {
     }
 
     private fun showLevelSelect() {
+        stopBgMusic()
         adapter.refreshProgress()
         gameContainer.visibility = View.GONE
         levelSelectContainer.visibility = View.VISIBLE
@@ -281,6 +289,30 @@ class SokobanFragment : Fragment() {
 
     // --- Sound & Vibration ---
 
+    private fun startBgMusic() {
+        if (bgMusicPlayer?.isPlaying == true) return
+        try {
+            bgMusicPlayer?.release()
+            bgMusicPlayer = MediaPlayer.create(requireContext(), R.raw.sokoban_play)?.apply {
+                isLooping = true
+                setVolume(0.5f, 0.5f)
+                start()
+            }
+        } catch (e: Exception) {
+            Log.e("SokobanFragment", "背景音乐启动失败", e)
+        }
+    }
+
+    private fun stopBgMusic() {
+        try {
+            bgMusicPlayer?.stop()
+            bgMusicPlayer?.release()
+            bgMusicPlayer = null
+        } catch (e: Exception) {
+            // 忽略
+        }
+    }
+
     private fun playSound(soundId: Int) {
         if (!::soundPool.isInitialized) return
         try {
@@ -307,10 +339,29 @@ class SokobanFragment : Fragment() {
         }
     }
 
+    private fun loadLevelsFromRaw(): List<SokobanLevel> {
+        return try {
+            val inputStream = requireContext().resources.openRawResource(R.raw.level0)
+            val content = inputStream.bufferedReader().use { it.readText() }
+            val levels = SokobanLevel.parseLevel0Array(content)
+            Log.d("SokobanFragment", "从 level0.txt 解析出 ${levels.size} 个关卡")
+            if (levels.isEmpty()) {
+                Log.w("SokobanFragment", "解析出的关卡列表为空，回退到内置关卡")
+                SokobanLevel.getAllLevels()
+            } else {
+                levels
+            }
+        } catch (e: Exception) {
+            Log.e("SokobanFragment", "解析 level0.txt 失败", e)
+            SokobanLevel.getAllLevels()
+        }
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         if (::soundPool.isInitialized) {
             soundPool.release()
         }
+        stopBgMusic()
     }
 }

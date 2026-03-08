@@ -2,8 +2,8 @@ package com.heyu.zhudeapp.Fragment.post
 
 import android.app.Dialog
 import android.os.Bundle
-import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.heyu.zhudeapp.data.Post
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -14,21 +14,19 @@ class DeleteConfirmationDialogFragment : DialogFragment() {
         val postJson = arguments?.getString(BUNDLE_KEY_POST)
 
         return activity?.let {
-            val builder = AlertDialog.Builder(it)
-            builder.setMessage("你确定要删除这条动态吗？")
+            MaterialAlertDialogBuilder(it)
+                .setMessage("你确定要删除这条动态吗？")
                 .setPositiveButton("删除") { _, _ ->
-                    postJson?.let {
+                    postJson?.let { json ->
                         val resultBundle = Bundle().apply {
                             putBoolean(BUNDLE_KEY_CONFIRMED, true)
-                            putString(BUNDLE_KEY_POST, it)
+                            putString(BUNDLE_KEY_POST, json)
                         }
                         parentFragmentManager.setFragmentResult(REQUEST_KEY, resultBundle)
                     }
                 }
-                .setNegativeButton("取消") { _, _ ->
-                    // User cancelled the dialog
-                }
-            builder.create()
+                .setNegativeButton("取消", null)
+                .create()
         } ?: throw IllegalStateException("Activity cannot be null")
     }
 
