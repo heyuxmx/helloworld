@@ -36,8 +36,8 @@ android {
         applicationId = "com.heyu.zhudeapp"
         minSdk = 24
         targetSdk = 34
-        versionCode = 10 // 增加版本号以确保覆盖安装成功
-        versionName = "2.0.0"
+        versionCode = 11 // 增加版本号以确保覆盖安装成功
+        versionName = "2.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
